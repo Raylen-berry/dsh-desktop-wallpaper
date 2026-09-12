@@ -3,3 +3,6 @@ wallpapers_orig/
 
 # tools/ 下脚本跑出来的产物（抽出的真样式表等），不进版本库
 tools/out/
+
+# 底图本体不进仓库（放 GitHub Release 资产，仓库只留清单 wallpapers.manifest.json）
+/wallpapers/
