@@ -1,0 +1,2 @@
+# v1.3.0：壁纸按类型子目录存放 wallpapers/<类型>/<文件名>
+# 最大原图 60MB（< GitHub 100MB 上限），自本版起不再按 lfs 过滤，避免 clone 依赖 git-lfs。

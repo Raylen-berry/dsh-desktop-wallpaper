@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>底图工坊 · 对话框特效候选（极光已删，2026-09-12）</title>
+<style>
+  :root{
+    --accent:#e5c8f9; --deep:#1b1424;
+    --soft:rgba(229,200,249,.45); --faint:rgba(229,200,249,.16);
+    /* 与 dynamicCss 算出来的值一致（deep #1b1424 / accent #e5c8f9） */
+    --bga-card-shade:rgba(51,42,62,.3); --bga-card-edge:rgba(27,20,36,.34);
+  }
+  html,body{margin:0;height:100%}
+  /* 直接用你库里的真实底图当背景 —— "卡面分不清"这个问题只有放在真底图上才看得出来 */
+  body{background:#1b1424 url("../wallpapers/线稿风/月薔薇（ヒトこもる）.png") center/cover no-repeat fixed;
+       color:#f6f1fb;font:13px/1.6 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif;padding:18px 22px 26px;box-sizing:border-box}
+  h1{font-size:15px;margin:0 0 2px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.75)}
+  p.lead{margin:0 0 14px;font-size:12px;color:#e7dcf5;max-width:1320px;text-shadow:0 1px 3px rgba(0,0,0,.75)}
+  p.lead b{color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:1320px}
+  .cand{margin:0;background:rgba(20,14,28,.62);border:1px solid rgba(255,255,255,.14);
+        border-radius:14px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:10px}
+  /* 场景：画布(=真实 90px 高 dock 条) + 对话框卡面 */
+  .scene{position:relative;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.18))}
+  .band{position:relative;height:90px;overflow:clip;pointer-events:none}
+  /* 卡面按你当前的真实配置复刻：cardA=0 ⇒ 背景 alpha 只有 .05、几乎全透明，只剩一圈描边。
+     新加的两道阴影就是 v1.5.2 给的四条特效都带上的"接触阴影 + 环境阴影"。 */
+  .card{height:46px;margin:0 6px 8px;border-radius:14px;border:1px solid rgba(229,200,249,.4);
+        background:rgba(253,252,255,.05);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+        box-shadow:0 1px 2px var(--bga-card-edge),0 10px 28px var(--bga-card-shade);
+        display:flex;align-items:center;padding:0 14px;font-size:11.5px;color:#ded4ec}
+  .card.bare{box-shadow:none}
+  /* 卡面可辨识性对比条 */
+  .cmp{max-width:1320px;margin:0 0 16px;padding:12px 14px;border-radius:14px;
+       background:rgba(20,14,28,.62);border:1px solid rgba(255,255,255,.14)}
+  .cmp h2{font-size:12.5px;margin:0 0 10px;font-weight:600}
+  .cmp .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cmp .col>span{display:block;font-size:11px;margin:6px 0 0;color:#cbbde0}
+  .cmp .col>span b{color:#fff}
+  figcaption b{display:block;font-size:12.5px;font-weight:600;color:#f3ecfb}
+  figcaption span{display:block;font-size:11px;color:#bdaed2;line-height:1.55;margin-top:2px}
+  figcaption span b{color:#f0e6ff}
+  .tag{display:inline-block;margin-left:6px;font-size:10px;padding:0 5px;border-radius:4px;
+       border:1px solid rgba(140,180,255,.5);color:#9dbaff;vertical-align:1px}
+
+  /* ============ ① 光带扫过 ============
+     刻意**不用 transform 位移**：整条是"定宽元素 + 动 background-position"，
+     元素几何始终是整条画布宽 ⇒ 一个像素都不会跑出画布（这是这条候选的要点）。 */
+  .fx-sweep .sweep{position:absolute;left:0;right:0;top:38px;height:3px;
+         background:linear-gradient(90deg,transparent,var(--accent),transparent);
+         background-size:28% 100%;background-repeat:no-repeat;
+         filter:blur(1.5px);opacity:0;animation:sw 6s cubic-bezier(.4,0,.2,1) infinite}
+  .fx-sweep .sweep.s2{top:54px;height:2px;background-size:18% 100%;animation-duration:9s;animation-delay:2.4s}
+  @keyframes sw{0%{background-position:-28% 0;opacity:0}12%{opacity:.85}62%{opacity:.7}100%{background-position:100% 0;opacity:0}}
+  .fx-sweep .sweepglow{position:absolute;left:12%;right:12%;top:36px;height:6px;border-radius:6px;
+         background:var(--accent);filter:blur(14px);opacity:.18;animation:swglow 6s ease-in-out infinite}
+  @keyframes swglow{0%,100%{opacity:.10}50%{opacity:.26}}
+
+  /* ============ ② 星轨环绕 ============ */
+  .fx-orbit i{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--accent);
+         box-shadow:0 0 10px 2.5px var(--soft);offset-path:ellipse(38% 26px at 50% 62%);
+         offset-distance:0%;animation:travel 11s linear infinite;opacity:.9}
+  .fx-orbit i:nth-child(2){width:3px;height:3px;animation-duration:17s;animation-direction:reverse;opacity:.7}
+  .fx-orbit i:nth-child(3){width:2.5px;height:2.5px;animation-duration:23s;animation-delay:-6s;opacity:.55}
+  @keyframes travel{to{offset-distance:100%}}
+
+  /* ============ ③ 浮尘光斑 ============ */
+  .fx-dust i{position:absolute;border-radius:50%;background:var(--accent);filter:blur(5px);
+         opacity:0;animation:rise var(--d) linear infinite var(--dl)}
+  @keyframes rise{0%{transform:translateY(6px) scale(.85);opacity:0}
+                  22%{opacity:var(--o)}70%{opacity:var(--o)}100%{transform:translateY(-58px) scale(1.2);opacity:0}}
+
+  /* ============ ④ 落樱 ============ */
+  .fx-petal i{position:absolute;top:-12px;background:linear-gradient(150deg,var(--accent),rgba(229,200,249,.55));
+         border-radius:50% 0 50% 0;opacity:0;animation:fall var(--d) linear infinite var(--dl)}
+  @keyframes fall{0%{transform:translate(0,-10px) rotate(0);opacity:0}
+                  12%{opacity:.85}88%{opacity:.7}
+                  100%{transform:translate(var(--dx),104px) rotate(300deg);opacity:0}}
+
+  /* ============ ⑤ 墨韵涟漪 ============ */
+  .fx-ink i{position:absolute;left:50%;bottom:-4px;height:16px;width:46%;margin-left:-23%;border-radius:50%;
+         background:var(--accent);filter:blur(7px);opacity:0;
+         animation:bloom 5.2s ease-out infinite;animation-delay:var(--dl)}
+  @keyframes bloom{0%{transform:scaleX(.34) scaleY(.5);opacity:0}
+                   18%{opacity:.34}70%{opacity:.13}
+                   100%{transform:scaleX(1.55) scaleY(1.5);opacity:0}}
+
+  /* ============ ⑥ 雨丝 ============ */
+  .fx-rain i{position:absolute;top:-14px;width:1px;background:linear-gradient(180deg,transparent,var(--accent));
+         opacity:0;animation:drop var(--d) linear infinite var(--dl)}
+  @keyframes drop{0%{transform:translate(0,-16px) rotate(12deg);opacity:0}
+                  10%{opacity:.75}100%{transform:translate(-22px,110px) rotate(12deg);opacity:0}}
+  .fx-rain .rainsurf{position:absolute;left:8%;right:8%;bottom:0;height:10px;border-radius:50%;
+         background:var(--accent);filter:blur(9px);opacity:.14;animation:rainsurf 3.4s ease-in-out infinite}
+  @keyframes rainsurf{0%,100%{opacity:.09}50%{opacity:.2}}
+</style>
+</head>
+<body>
+<h1>对话框特效 · v1.5.2 定稿（留 4 删 4）+ 卡面可辨识性对比</h1>
+<p class="lead"><b>v1.5.2 定稿</b>：只留 <b>落樱 / 气泡 / 流萤 / 雨丝</b> 四种；另外四个（光带扫过 / 星轨环绕 / 浮尘光斑 / 墨韵涟漪）
+已从插件里<b>整体删除</b>（选项 + 规则 + 关键帧 + 分支全删，盘上存过它们的会自动归到流萤）。
+下面标 <b>✅ 已按你的要求调过</b> 的是 <b>落樱</b>（叶子缩小、数量增加）与 <b>雨丝</b>（加密），其余标注 ✗ 的只作留档。
+另外保留的四条都在卡面上加了「接触阴影 + 环境阴影」——那是把墨韵涟漪那道深色阴影<b>削浓度后分给四条</b>。
+背景用的是你库里的真底图（线稿风 / 月薔薇），这样"卡面分不清"才看得出来。</p>
+
+<div class="cmp">
+  <h2>① 卡面可辨识性（你当前配置：卡面不透明 0 ⇒ 背景 alpha 只有 .05）</h2>
+  <div class="pair" style="--bga-card-shade:rgba(51,42,62,.3);--bga-card-edge:rgba(27,20,36,.34)">
+    <div class="col">
+      <div class="card bare">输入点什么… （现状：无阴影）</div>
+      <span>现状：只有一圈 <code>rgba(229,200,249,.4)</code> 描边 —— 底图一花，框到哪儿全靠猜</span>
+    </div>
+    <div class="col">
+      <div class="card">输入点什么… （v1.5.2：接触阴影 + 环境阴影）</div>
+      <span><b>新：</b><code>0 1px 2px</code> 深色接触阴影勾边 + <code>0 10px 28px</code> 环境阴影托底（浓度 .34 / .30，比墨韵原版 .5 削过）</span>
+    </div>
+  </div>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+// 与 client.js 同款的确定性随机（绝不用 Math.random，否则每次刷新粒子位置乱跳）
+function prand(i){var x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x)}
+
+var CANDS=[
+ {k:'sweep',n:'✗ 光带扫过（已删除）',
+  d:'卡面上沿一条柔光带缓缓扫过。v1.5.2 已从插件里整体删除，此处仅作留档。'},
+ {k:'orbit',n:'✗ 星轨环绕（已删除）',
+  d:'2–3 颗小火花沿一个看不见的椭圆轨道（offset-path）绕卡面顶部转，周期互质所以看不出循环。安静、几何感强。'},
+ {k:'dust',n:'✗ 浮尘光斑（已删除）',
+  d:'7 颗大而虚的光斑（blur 5px）缓缓上浮。v1.5.2 已从插件里整体删除，此处仅作留档。'},
+ {k:'petal',n:'✅ 落樱（已缩小 + 加数量）',
+  d:'叶子 7–12px → <b>5–8px</b>，数量 9 → <b>14</b>：单看数量多了 56%，但叶子面积降到 ~45%，所以是「叶子多了、不是变密了」。'},
+ {k:'ink',n:'✗ 墨韵涟漪（已删除）',
+  d:'三圈椭圆涟漪从卡面上沿洇开。它的「卡面深色阴影」被削浓度后并进了留下的四种特效（见下面卡面的接触阴影 + 环境阴影）。'},
+ {k:'rain',n:'✅ 雨丝（已加密）',
+  d:'条数 12 → <b>30</b>，跨度不变、粗细仍 1px、落速与长度区间不动 ⇒ 同一片区域里同时下落的雨丝约 2.5 倍，不再是"空调外机滴水"。'}
+];
+
+function build(){
+  var grid=document.getElementById('grid'),html='',c,i,j;
+  for(c=0;c<CANDS.length;c++){
+    var o=CANDS[c],band='';
+    if(o.k==='sweep'){
+      band='<div class="sweep s1"></div><div class="sweep s2"></div><div class="sweepglow"></div>';
+    }
+    if(o.k==='orbit'){ band='<i></i><i></i><i></i>'; }
+    if(o.k==='dust'){
+      for(i=0;i<7;i++){
+        var sz=(8+Math.round(prand(i+7)*7)),left=(4+prand(i+17)*90).toFixed(1),
+            d=(14+Math.round(prand(i+27)*8)),dl=(prand(i+37)*14).toFixed(1),
+            op=(0.10+prand(i+47)*0.18).toFixed(2),
+            bt=(2+Math.round(prand(i+57)*30));
+        band+='<i style="width:'+sz+'px;height:'+sz+'px;left:'+left+'%;bottom:'+bt+'px;--d:'+d+'s;--dl:'+dl+'s;--o:'+op+'"></i>';
+      }
+    }
+    if(o.k==='petal'){
+      for(j=0;j<14;j++){
+        var w=(5+Math.round(prand(j+67)*3)),lf=(4+prand(j+77)*88).toFixed(1),
+            dd=(9+Math.round(prand(j+87)*6)),dl2=(prand(j+97)*11).toFixed(1),
+            dx=Math.round(-30+prand(j+107)*60);
+        band+='<i style="width:'+w+'px;height:'+(w+2)+'px;left:'+lf+'%;--d:'+dd+'s;--dl:'+dl2+'s;--dx:'+dx+'px"></i>';
+      }
+    }
+    if(o.k==='ink'){ band='<i style="--dl:0s"></i><i style="--dl:1.7s"></i><i style="--dl:3.4s"></i>'; }
+    if(o.k==='rain'){
+      band='<div class="rainsurf"></div>';
+      for(var r=0;r<30;r++){
+        var h=(14+Math.round(prand(r+117)*16)),lf2=(4+prand(r+127)*92).toFixed(1),
+            d2=(1.5+prand(r+137)*1.1).toFixed(2),dl3=(prand(r+147)*3).toFixed(2);
+        band+='<i style="height:'+h+'px;left:'+lf2+'%;--d:'+d2+'s;--dl:'+dl3+'s"></i>';
+      }
+    }
+    html+='<figure class="cand"><div class="scene"><div class="band fx-'+o.k+'">'+band+'</div>'+
+          '<div class="card">对话框 · 输入点什么…</div></div>'+
+          '<figcaption><b>'+o.n+'<span class="tag">纯 CSS</span></b><span>'+o.d+'</span></figcaption></figure>';
+  }
+  grid.innerHTML=html;
+}
+build();
+</script>
+</body>
+</html>

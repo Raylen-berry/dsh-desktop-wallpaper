@@ -1,0 +1,6 @@
+# 本地底图原始文件备份, 不进版本库
+wallpapers_orig/
+
+# tools/ 下脚本跑出来的产物（抽出的真样式表等），不进版本库
+tools/out/
+/wallpapers/

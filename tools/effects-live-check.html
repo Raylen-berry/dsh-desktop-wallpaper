@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>底图工坊 · 真样式表实机检查（开发用）</title>
+<!-- 用的是 tools/extract-real-css.mjs 从 client.js 里真跑出来的 STATIC_CSS，不是抄的 -->
+<link rel="stylesheet" href="out/static-css.css">
+<style>
+  /* 只补插件运行时会提供的 CSS 变量与主题变量（其它一律用真样式表） */
+  :root{
+    --bga-accent:#e5c8f9; --bga-accent-soft:rgba(229,200,249,.45);
+    --bga-accent-faint:rgba(229,200,249,.16); --bga-deep-glow:rgba(52,38,72,.5);
+    --dsh-composer-card-max-width:932px;
+    --dsh-composer-height:240px; --dsw-alias-bg-layer-1:#202024;
+  }
+  body{margin:0;background:#191322;color:#efe8f6;font:12px/1.5 "Microsoft YaHei UI",system-ui,sans-serif;padding:14px 18px 24px}
+  h1{font-size:14px;margin:0 0 10px;font-weight:600}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .slot{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:8px 10px}
+  .slot h2{font-size:12px;margin:0 0 6px;font-weight:600;color:#f3ecfb}
+  /* 复刻真实结构：.bga-dockfx(height:0, max-width 932) > .bga-dockfx-in(90px 画布) */
+  .stage{width:932px;max-width:100%;position:relative}
+  .card{height:44px;margin:0 6px 6px;border-radius:14px;border:1px solid rgba(229,200,249,.4);background:rgba(240,236,248,.10)}
+</style>
+</head>
+<body>
+<h1>真样式表实机检查 · 8 个特效（画布 932×90，与 app 内一致）</h1>
+<div class="grid" id="grid"></div>
+<script>
+var ACCENT = '#e5c8f9'
+// 与 client.js 的 EFFECTS / DockFx 逐项对应：特效 id → 建节点的 class 名
+// v1.5.2 定稿：只留四种（落樱 14 片 / 雨丝 30 条），被删的四个不再出现 —— 它们的 CSS 也已经不存在了。
+var SPEC = [
+  { k: 'firefly', n: '流萤', n2: [['div','bga-fly f',18],['div','bga-star s',14]], extra: ['bga-meteor','bga-meteor m2'] },
+  { k: 'bubble',  n: '气泡', n2: [['div','bga-bub b',16]], extra: ['bga-bubsurf'] },
+  { k: 'petal',   n: '落樱', n2: [['i','p',14]], extra: [], wrap: 'bga-ptl' },
+  { k: 'rain',    n: '雨丝', n2: [['i','r',30]], extra: ['bga-wet'], wrap: 'bga-rn' }
+]
+var HTML = ''
+for (var s = 0; s < SPEC.length; s++) {
+  var o = SPEC[s], kids = ''
+  for (var e = 0; e < o.extra.length; e++) kids += '<div class="' + o.extra[e] + '"></div>'
+  for (var g = 0; g < o.n2.length; g++) {
+    var tag = o.n2[g][0], pre = o.n2[g][1], cnt = o.n2[g][2]
+    for (var i = 1; i <= cnt; i++) kids += '<' + tag + ' class="' + pre + i + '"></' + tag + '>'
+  }
+  var inner = o.wrap ? '<div class="' + o.wrap + '">' + kids + '</div>' : kids
+  HTML += '<div class="slot" data-fx="' + o.k + '"><h2>' + o.n + ' (' + o.k + ')</h2>' +
+          '<div class="stage"><div class="bga-dockfx" aria-hidden="true"><div class="bga-dockfx-in">' +
+          inner + '</div></div></div><div class="card"></div></div>'
+}
+document.getElementById('grid').innerHTML = HTML
+
+// 自量自报：给 browser_eval 用
+var seen = {}   // fx → {maxOpacity, escapes, anims}
+window.__rep = function () {
+  var out = {}
+  document.querySelectorAll('.slot').forEach(function (slot) {
+    var fx = slot.getAttribute('data-fx')
+    var band = slot.querySelector('.bga-dockfx-in')
+    var br = band.getBoundingClientRect()
+    var st = seen[fx] || (seen[fx] = { maxOpacity: 0, escapes: 0, samples: 0, worst: 0 })
+    band.querySelectorAll('i,div').forEach(function (el) {
+      var cs = getComputedStyle(el)
+      var op = parseFloat(cs.opacity)
+      if (op > st.maxOpacity) st.maxOpacity = +op.toFixed(2)
+      var b = el.getBoundingClientRect()
+      if (b.width > 0) {
+        var over = Math.max(b.right - br.right, br.left - b.left)
+        if (over > 0.5) { st.escapes++; if (over > st.worst) st.worst = Math.round(over) }
+      }
+    })
+    st.samples++
+    out[fx] = { kids: band.querySelectorAll('i,div').length, maxOpacity: st.maxOpacity, escapeSamples: st.escapes, worstEscapePx: st.worst, samples: st.samples, scrollW: band.scrollWidth, clientW: band.clientWidth, overflow: getComputedStyle(band).overflow }
+  })
+  out.__animations = document.getAnimations().filter(function (a) { return a.playState === 'running' }).length
+  return out
+}
+</script>
+</body>
+</html>

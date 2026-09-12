@@ -1,0 +1,127 @@
+{
+  "format": "dsh-bg-atelier-wallpapers/1",
+  "generatedAt": "2026-09-12T12:17:52.848Z",
+  "release": {
+    "tag": "wallpapers-v1",
+    "repo": "Raylen-berry/dsh-desktop-wallpaper",
+    "base": "https://github.com/Raylen-berry/dsh-desktop-wallpaper/releases/download/wallpapers-v1"
+  },
+  "total": 19,
+  "totalBytes": 349244966,
+  "items": [
+    {
+      "asset": "w01.jpg",
+      "path": "二次元/楪祈.jpg",
+      "bytes": 1861513,
+      "sha256": "68c5e0bf62618f832a4ae2c998c23fc8270c3da7c1c72ff7068a96196b5d8d5c"
+    },
+    {
+      "asset": "w02.png",
+      "path": "二次元/远坂凛.png",
+      "bytes": 1184783,
+      "sha256": "59fc32a3a26c53f8ca1cdf79df6b5d8bf44757618df5bef41465b6e29694a7cc"
+    },
+    {
+      "asset": "w03.png",
+      "path": "线稿风/亚丝娜.png",
+      "bytes": 1189782,
+      "sha256": "e8a0a6beb3a1a3869dd58c3b5b07dca225a380deb43695ecc799e2e38440dd44"
+    },
+    {
+      "asset": "w04.png",
+      "path": "线稿风/月薔薇（ヒトこもる）.png",
+      "bytes": 3551498,
+      "sha256": "6007c0433067c59676d73d98701ebeac71be45dbb0708a8d392c979391c1077c"
+    },
+    {
+      "asset": "w05.png",
+      "path": "线稿风/梅蕾尔.png",
+      "bytes": 2393527,
+      "sha256": "081d4dfbf81e1ac96fc3df6e4fad9b52bc182e5f069f71fb63bef9054f2064c1"
+    },
+    {
+      "asset": "w06.png",
+      "path": "线稿风/物语花绫.png",
+      "bytes": 7156109,
+      "sha256": "caac752c4bf803cd20f74869dbebc279d3d943cb6631dcac8738babef340a651"
+    },
+    {
+      "asset": "w07.png",
+      "path": "线稿风/青缭.png",
+      "bytes": 1215509,
+      "sha256": "a948dbbc3e5f69f64af7670bef759f108a7e4fd3db7799bce31f3c3850f4812f"
+    },
+    {
+      "asset": "w08.png",
+      "path": "重返未来1999/贝利尔.png",
+      "bytes": 4268873,
+      "sha256": "febf88f66dc55b22d4db2603b96313826cbd5e857fdcda0ef911034875ddc30f"
+    },
+    {
+      "asset": "w09.jpg",
+      "path": "重返未来1999/金蜜卡.jpg",
+      "bytes": 160116,
+      "sha256": "bd8a65c19f0d41dbeb06ef13472e9f993f347a678e15782109b4b17f3ca2cfdb"
+    },
+    {
+      "asset": "w10.png",
+      "path": "高清/亚丝娜.png",
+      "bytes": 18644181,
+      "sha256": "846206f00b4ab2368feb30e82cf94f81e3dbe5449ee24772b70f4caa99dfc091"
+    },
+    {
+      "asset": "w11.png",
+      "path": "高清/月蔷薇.png",
+      "bytes": 57001798,
+      "sha256": "c2c997c1a7fd25b296ef196dd171b5d93b86e3b76b5ba07cf66c3df38e04fcd6"
+    },
+    {
+      "asset": "w12.png",
+      "path": "高清/梅蕾尔.png",
+      "bytes": 45787386,
+      "sha256": "23d1d2855484b48a2e266fd5e3ee651310ed2f23cc47b7ab769546f3a3364baa"
+    },
+    {
+      "asset": "w13.png",
+      "path": "高清/楪祈.png",
+      "bytes": 28781784,
+      "sha256": "6c72a088e0087c5d8bd4f5f1ddbd1ca8ee07ef05396250c651f3857ed1664847"
+    },
+    {
+      "asset": "w14.png",
+      "path": "高清/流萤.png",
+      "bytes": 15967552,
+      "sha256": "ae0bc0f4df8585c41e41103bbada1e51522ffbfe7c3119b0172e172063dbc990"
+    },
+    {
+      "asset": "w15.png",
+      "path": "高清/物语花绫.png",
+      "bytes": 17869545,
+      "sha256": "1c069b75215e75ed6e6541333aa6e0094b357ed4047eb51b40e2958b6e7360ff"
+    },
+    {
+      "asset": "w16.png",
+      "path": "高清/贝利尔.png",
+      "bytes": 52738200,
+      "sha256": "b725b8a3de22231df39ad7acaa1b711d5d7b0e7c280ac3156c1a089fb42859ec"
+    },
+    {
+      "asset": "w17.png",
+      "path": "高清/远坂凛.png",
+      "bytes": 63283616,
+      "sha256": "45521214204d8cf158b128f63ca109e001e9dce9300830b626d5a3d9a43b56ad"
+    },
+    {
+      "asset": "w18.png",
+      "path": "高清/金蜜卡.png",
+      "bytes": 18141074,
+      "sha256": "86ca7710d0233f88b002e7b7871861bc7e7cdbde629924ece11306041202ba3d"
+    },
+    {
+      "asset": "w19.jpg",
+      "path": "高清/青缭.jpg",
+      "bytes": 8048120,
+      "sha256": "5b2d7fd3ac030d71aec540eebeece05f2220531cd01d709b8cc42b495eea7736"
+    }
+  ]
+}
