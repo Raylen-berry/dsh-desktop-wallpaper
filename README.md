@@ -13,10 +13,9 @@ dsh-bg-atelier/
 ├── client.js         # Client 半端: 类型→图库两级浏览 / 随机换图 / 琉璃卡面 / 特效 / 设置页
 ├── cordis.patch.yml  # bundle 挂载声明 (让 DSH 启动时挂载本插件)
 ├── package.json      # npm 插件清单 (dsh.bundle.patch + dsh.client 客户端声明)
-├── wallpapers/       # 内置底图目录 —— 每个子文件夹 = 一个"底图类型"（v1.6.0 起是压缩过的 .webp）
-│   ├── 线稿风/          # 例如: 亚丝娜.webp / 青缭.webp / …
-│   └── 重返未来1999/    # 例如: Vertin.webp / 梁月.webp / …
-├── wallpapers_orig/  # 压缩前的原始 PNG 留底（**本地专用**，已 gitignore：不进仓库、不进 Release）
+├── wallpapers/       # 内置底图目录 —— 每个子文件夹 = 一个"底图类型"（**原始文件**，PNG/JPG 原样，无损）
+│   ├── 线稿风/          # 例如: 亚丝娜.png / 青缭.png / …
+│   └── 重返未来1999/    # 例如: Vertin.png / 梁月.png / …
 ├── INSTALL.md        # 安装 / 升级 / 卸载指南
 └── README.md
 ```
@@ -40,7 +39,7 @@ dsh plugin --profile web add link:D:\DeepSeek\dsh-plugins\dsh-desktop-wallpaper
 **开箱即用**：插件内置 **4 个类型共 39 张底图**（二次元 2 / 线稿风 5 / 重返未来1999 12 / 高清 20）。
 clone 完先在插件目录跑一次 `node tools/fetch-wallpapers.mjs`（或设置页点「**下载底图**」）把图取回来，再重启 DSH；
 设置 → 底图工坊 → 点类型卡进入图库即可选。**图片不进 git**（v1.5.5 起改走 Release 资产，见下面 A 节），
-所以 clone 只有代码、很快；`wallpapers/` 里的 `.webp` 是 v1.6.0 起统一压缩过的发布版（口径见 A 节）。
+所以 clone 只有代码、很快；`wallpapers/` 里是**原始文件**（无损，约 820 MB，口径见 A 节）。
 
 **加一个新类型/新图**：把图片放进「放图目录」下**一个子文件夹 = 一个类型**，例如：
 
@@ -105,27 +104,31 @@ host 每次实时解析、按需刷新，设置页点「刷新」即出现新类
 > `dsh-browser-live` 要装浏览器扩展），但下面几条必须先看清楚。
 > （起因：用户 2026-09-12 反馈"工作电脑上传、回家发现可用性很差、必须手动操作"。）
 
-**A. 克隆体积（v1.5.5 起：图不进 git，改为 Release 资产 + 按需下载；v1.6.0 起改用新 tag `wallpapers-v2`）**
-39 张底图压缩后合计约 **24 MB**（`wallpapers-v1` 那版是 19 张原始 PNG / 349 MB），
-长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
-仓库只留 `wallpapers.manifest.json`（每张图的路径 + 字节数 + sha256），图片作为 Release 资产发布：
+**A. 克隆体积（v1.5.5 起：图不进 git，改为 Release 资产 + 按需下载）**
+39 张底图合计约 **820 MB**，长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
+仓库只留 `wallpapers.manifest.json`（每张图的路径 + 字节数 + sha256），图片作为 Release 资产发布（tag `wallpapers-v1`）：
 
 ```powershell
 git clone https://github.com/Raylen-berry/dsh-desktop-wallpaper.git   # 只有代码，很快
-cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs           # 从 Release 取回 39 张（可重入/断点续传）
-node tools/fetch-wallpapers.mjs --check                              # 只校验本机现有图（不联网）
+cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs            # 从 Release 取回 39 张（可重入/断点续传）
+node tools/fetch-wallpapers.mjs --check                               # 只校验本机现有图（不联网）
 ```
 
-**压缩口径（v1.6.0 定的，别再用原始 PNG 发版）**：统一转 WebP。宽度 > 3840 的先按 lanczos3 缩到 3840
-（`高清/` 那批是 9744×4500 的 4x 放大件，显示器上用不到那个尺寸），小图（<8 MB）同时试无损编码、取更小的那个，
-其余用 `q92` 有损。压缩前 820 MB → 24 MB（省 97.1%）。**原始 PNG 留底在 `wallpapers_orig/`（本地、gitignore）
-与原图目录 `E:\壁纸`，随时可还原**；`wallpapers-v1` 那个旧 Release 也仍在（清单已不引用它）。
+**画质口径：完全无损 —— 不缩放、不重编码。** Release 资产就是原始文件（PNG / JPG 原样），逐张 sha256 与清单一致。
+下载量确实大（820 MB），这是有意换来的：底图是长期资产，宁可下载慢，也不要在存档上留一次有损编码。
+本机显示并不受这个尺寸拖累 —— host 供图时 `SERVED_MAX_DIM = 3840`（长边超 3840 先缩到 3840 再送浏览器），
+派生图另走 640 / 320 / 112 px。真要一份轻量版：`node tools/compress-wallpapers.mjs` 可另生成一套 3840 宽 WebP q92
+到 `wallpapers_light/`（**仅供自用，不参与发版**）。
 
 设置页里同一个入口是「**下载底图**」按钮（显示进度、逐张校验 sha256；已存在且校验通过的跳过 ⇒ 断网了再点一次即可）。
-图片有变动时跑 `node tools/make-wallpaper-manifest.mjs` 重新生成清单再发版
-（换 Release tag 用环境变量：`$env:WALLPAPER_RELEASE_TAG='wallpapers-v3'; node tools/make-wallpaper-manifest.mjs`）。
 
-> **迁移顺序（重要）**：先把 39 张作为 Release 资产发布并验证下载可用，**再**把 `wallpapers/` 从 git 移除；
+> **加图/改图必须用追加式清单生成器**：`tools/make-wallpaper-manifest.mjs` 是**从零重编号**的，
+> 一改名或加图就会让既有 `wNN` 与 Release 里已上传的资产整体错位（`贝利尔.png`→`贝利尔2.png` 就撞过
+> w08/w16），make-release 会因为"同名资产字节数不符"把已传的删掉重传。发版一律走
+> `node tools/make-manifest-append.mjs`（默认拿 HEAD 那份清单作基准，按 sha256 把已发布的图绑回原资产名，
+> 只给新图续编 `w20`、`w21`…），再 `node tools/make-release.mjs` 补传差额。
+
+> **迁移顺序（重要）**：先把图作为 Release 资产发布并验证下载可用，**再**把 `wallpapers/` 从 git 移除；
 > 反了的话，新克隆在 Release 就绪前一张图都拿不到。图片从 git 移除之前，`git sparse-checkout add wallpapers`
 > 仍可按需从 git 取图（离线机器适用）。
 
@@ -138,8 +141,8 @@ dsh plugin --profile web add link:<你放插件的绝对路径>
 （与 dsh-cache-control 同理，刷新页面无效）。重启会掐断正在跑的会话轮次 ⇒ 让用户自己挑时间。
 
 **C. 底图在哪 / 设置在哪**
-- **底图**在插件目录自己的 `wallpapers/<类型>/` 下（**随仓库移动**）；往里加图后派生图
-  （640px 图库图 / 112px 类型卡迷你图）会自动生成。
+- **底图**在插件目录自己的 `wallpapers/<类型>/` 下（**原始文件、不进 git** ⇒ 换机后先按 A 节从 Release 取回）；
+  往里加图后派生图（640px 图库图 / 112px 类型卡迷你图）会自动生成。
 - **设置**（当前底图 / 特效 / 配色 / 卡面不透明度与模糊 / **卡面阴影开关**）在
   `$DSH_HOME/dsh-bg-atelier/settings.json`，**不在仓库里** ⇒ 换机器后是默认值：
   特效回到「流萤」、卡面阴影为开、**底图要重新选一张** —— 这是最常见的"装好了但看着没变"。
@@ -193,16 +196,18 @@ dsh plugin --profile web remove dsh-bg-atelier
 
 ## 版本
 
-- v1.6.0：**底图改成压缩版发布（39 张 · 24 MB）+ 补齐此前漏发的 20 张**
-  - 底图从 `wallpapers-v1`（19 张原始 PNG / 349 MB）换成 `wallpapers-v2`（39 张 WebP / 24.2 MB）：
-    宽度 > 3840 的先按 lanczos3 缩到 3840（`高清/` 那批是 9744×4500 的 4x 放大件，显示器上用不到那个尺寸），
-    统一转 WebP（小图试无损、取更小者，其余 `q92`）。压缩前 820 MB → 24 MB，省 97.1%，39 张 0 失败。
-  - 顺带补齐 **20 张从没发过 Release 的图**（9/12 的梁月 / 无名者 / 小瑞安侬 / 哑谜1 / 哑谜2 与 9/13 的
+- v1.6.0：**补齐此前漏发的 20 张底图（共 39 张，全部无损原图）**
+  - 补齐 **20 张从没发过 Release 的图**（9/12 的梁月 / 无名者 / 小瑞安侬 / 哑谜1 / 哑谜2 与 9/13 的
     贝丽尔1 / 贝丽尔3 / 贝丽尔4 / 惠姑 / Vertin，各含普通 + 高清两份）—— 在此之前清单里有的图远端没有，
     别的机器点「下载底图」会恰好在这 20 张上 404。
-  - `贝利尔.png` 已改名 `贝利尔2.png`（4x 版同步改名），清单里的路径跟着更新；改名后 `高清` 类型内编号
-    也变了（楪祈 10 → 11），已同步写回本机 `$DSH_HOME/dsh-bg-atelier/settings.json` 的当前底图记录。
-  - 原始 PNG 全部留底在 `wallpapers_orig/`（gitignore，不进仓库、不进 Release）。
+  - **画质口径定死为无损**：Release 资产一律是原始文件，不缩放、不重编码。已发布的 `w01`–`w19` 逐张按
+    sha256 核对确认与本地原图字节相同 ⇒ 只补传了新增的 20 张（487 MB），tag 续用 `wallpapers-v1`。
+    （一度做过 3840 宽 WebP q92 的有损版并发成 `wallpapers-v2`，已按"要无损"的要求连同该 Release 与 tag 一起删除。）
+  - `贝利尔.png` 已改名 `贝利尔2.png`（4x 版同步改名），清单里的路径跟着更新。
+  - 新增 **`tools/make-manifest-append.mjs`**：追加式清单生成器 —— 按 sha256 把已发布的图绑回原资产名，
+    只给新图续编编号。直接用 `make-wallpaper-manifest.mjs` 是从零重编号，会把已上传的资产全部冲掉。
+  - 另留 **`tools/compress-wallpapers.mjs`**：想省下载量的人可自行生成一套 3840 宽 WebP q92 到 `wallpapers_light/`，
+    **仅供自用、不参与发版**。
 - v1.5.4：**粒子数量随画布宽度走（密度不再随屏宽变）+ 卡面阴影独立成开关**
   - **数量适配屏宽**（用户 2026-09-12："如果你限定数量，在我小屏显示的时候，密度就会很大，
     你现在需要全改数量为适配屏宽的类型了"）。做法：每个特效定义一个**间距**（px/颗），

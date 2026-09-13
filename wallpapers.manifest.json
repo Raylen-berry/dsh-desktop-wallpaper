@@ -1,247 +1,287 @@
 {
   "format": "dsh-bg-atelier-wallpapers/1",
-  "generatedAt": "2026-09-13T13:35:18.377Z",
+  "generatedAt": "2026-09-13T14:02:24.763Z",
   "release": {
-    "tag": "wallpapers-v2",
+    "tag": "wallpapers-v1",
     "repo": "Raylen-berry/dsh-desktop-wallpaper",
-    "base": "https://github.com/Raylen-berry/dsh-desktop-wallpaper/releases/download/wallpapers-v2"
+    "base": "https://github.com/Raylen-berry/dsh-desktop-wallpaper/releases/download/wallpapers-v1"
   },
   "total": 39,
-  "totalBytes": 25325296,
+  "totalBytes": 859953610,
+  "policy": "lossless：一律上传原始文件（PNG/JPG 原样，不缩放、不重编码）",
   "items": [
     {
-      "asset": "w01.webp",
-      "path": "二次元/楪祈.webp",
-      "bytes": 350254,
-      "sha256": "13c5c2a5520b1956712663d31b0673599b1c1b0d02177c103a5c1e7b726b26cd"
+      "asset": "w01.jpg",
+      "path": "二次元/楪祈.jpg",
+      "bytes": 1861513,
+      "sha256": "68c5e0bf62618f832a4ae2c998c23fc8270c3da7c1c72ff7068a96196b5d8d5c",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w02.webp",
-      "path": "二次元/远坂凛.webp",
-      "bytes": 119774,
-      "sha256": "325d8f4b2f1d8f186845104fc143746f6c597f21f5bd476628dd3b3e155857f0"
+      "asset": "w02.png",
+      "path": "二次元/远坂凛.png",
+      "bytes": 1184783,
+      "sha256": "59fc32a3a26c53f8ca1cdf79df6b5d8bf44757618df5bef41465b6e29694a7cc",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w03.webp",
-      "path": "线稿风/亚丝娜.webp",
-      "bytes": 246316,
-      "sha256": "0fddb9d0d62c771256b889d34438d2fba6faf259d2c506c8d176fec857978fb1"
+      "asset": "w03.png",
+      "path": "线稿风/亚丝娜.png",
+      "bytes": 1189782,
+      "sha256": "e8a0a6beb3a1a3869dd58c3b5b07dca225a380deb43695ecc799e2e38440dd44",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w04.webp",
-      "path": "线稿风/月薔薇（ヒトこもる）.webp",
-      "bytes": 536952,
-      "sha256": "3ae168c4aaa1982a167f8db8549168cd04f324524b00e0cc44942bbbbda94ebf"
+      "asset": "w04.png",
+      "path": "线稿风/月薔薇（ヒトこもる）.png",
+      "bytes": 3551498,
+      "sha256": "6007c0433067c59676d73d98701ebeac71be45dbb0708a8d392c979391c1077c",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w05.webp",
-      "path": "线稿风/梅蕾尔.webp",
-      "bytes": 341294,
-      "sha256": "ff5ab87a6bd8b98838ea05875ae2c8e00393ff9541bbb8abefbe022f3728027b"
+      "asset": "w05.png",
+      "path": "线稿风/梅蕾尔.png",
+      "bytes": 2393527,
+      "sha256": "081d4dfbf81e1ac96fc3df6e4fad9b52bc182e5f069f71fb63bef9054f2064c1",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w06.webp",
-      "path": "线稿风/物语花绫.webp",
-      "bytes": 370524,
-      "sha256": "6782b6098d70d1bcc2da05c0f87132c058fe8ea7e85dbcd8156e03d369c97a6e"
+      "asset": "w06.png",
+      "path": "线稿风/物语花绫.png",
+      "bytes": 7156109,
+      "sha256": "caac752c4bf803cd20f74869dbebc279d3d943cb6631dcac8738babef340a651",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w07.webp",
-      "path": "线稿风/青缭.webp",
-      "bytes": 348382,
-      "sha256": "626c4e3a52f13734d6b803039bf297b9aa2f1bed8c3a78435d6d415544c0d4ed"
+      "asset": "w07.png",
+      "path": "线稿风/青缭.png",
+      "bytes": 1215509,
+      "sha256": "a948dbbc3e5f69f64af7670bef759f108a7e4fd3db7799bce31f3c3850f4812f",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w08.webp",
-      "path": "重返未来1999/Vertin.webp",
-      "bytes": 513918,
-      "sha256": "882df7167a4b5bd3f7e89b3187dfe513c99e2b3be2dcfbd5eaa923fa82d22778"
+      "asset": "w08.png",
+      "path": "重返未来1999/贝利尔2.png",
+      "bytes": 4268873,
+      "sha256": "febf88f66dc55b22d4db2603b96313826cbd5e857fdcda0ef911034875ddc30f",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w09.webp",
-      "path": "重返未来1999/哑谜1.webp",
-      "bytes": 683244,
-      "sha256": "5dc7c090ca3f57184eac8686b54c4d3044d4b9ade768491e1c066249684331b6"
+      "asset": "w09.jpg",
+      "path": "重返未来1999/金蜜卡.jpg",
+      "bytes": 160116,
+      "sha256": "bd8a65c19f0d41dbeb06ef13472e9f993f347a678e15782109b4b17f3ca2cfdb",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w10.webp",
-      "path": "重返未来1999/哑谜2.webp",
-      "bytes": 304582,
-      "sha256": "dd5d24a5435ca94eb05d40f479657132568c1d6e971318bc8a47ca5e10357748"
+      "asset": "w10.png",
+      "path": "高清/亚丝娜.png",
+      "bytes": 18644181,
+      "sha256": "846206f00b4ab2368feb30e82cf94f81e3dbe5449ee24772b70f4caa99dfc091",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w11.webp",
-      "path": "重返未来1999/小瑞安侬.webp",
-      "bytes": 853666,
-      "sha256": "a2730031f7fa9b5c5543d104c4a8c3d8cabc4f668dc93d28f3ac9d7dad81bbba"
+      "asset": "w11.png",
+      "path": "高清/月蔷薇.png",
+      "bytes": 57001798,
+      "sha256": "c2c997c1a7fd25b296ef196dd171b5d93b86e3b76b5ba07cf66c3df38e04fcd6",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w12.webp",
-      "path": "重返未来1999/惠姑.webp",
-      "bytes": 192476,
-      "sha256": "acd389685acec74e7fd17827fcc2fa3a7d0574c6ef74064e8868b33c1355a105"
+      "asset": "w12.png",
+      "path": "高清/梅蕾尔.png",
+      "bytes": 45787386,
+      "sha256": "23d1d2855484b48a2e266fd5e3ee651310ed2f23cc47b7ab769546f3a3364baa",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w13.webp",
-      "path": "重返未来1999/无名者.webp",
-      "bytes": 282636,
-      "sha256": "bbe152f7b9b88320d3b58e66fd26fa6163163f5710d4ae691dbc3e0c4dca87d4"
+      "asset": "w13.png",
+      "path": "高清/楪祈.png",
+      "bytes": 28781784,
+      "sha256": "6c72a088e0087c5d8bd4f5f1ddbd1ca8ee07ef05396250c651f3857ed1664847",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w14.webp",
-      "path": "重返未来1999/梁月.webp",
-      "bytes": 762430,
-      "sha256": "5cb6458fb290500537033e6f5c7b13014b4c19622fd96db1d81687bdb59c40ae"
+      "asset": "w14.png",
+      "path": "高清/流萤.png",
+      "bytes": 15967552,
+      "sha256": "ae0bc0f4df8585c41e41103bbada1e51522ffbfe7c3119b0172e172063dbc990",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w15.webp",
-      "path": "重返未来1999/贝丽尔1.webp",
-      "bytes": 350848,
-      "sha256": "39c9e3be5f00e83d42bc054973e0100b20f38c8359ec17bfc544f0aa960af1ce"
+      "asset": "w15.png",
+      "path": "高清/物语花绫.png",
+      "bytes": 17869545,
+      "sha256": "1c069b75215e75ed6e6541333aa6e0094b357ed4047eb51b40e2958b6e7360ff",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w16.webp",
-      "path": "重返未来1999/贝丽尔3.webp",
-      "bytes": 336228,
-      "sha256": "1d177328117255f299f4781dccc3b4e2ab895f65b5e7894caa7eb7d41b69ea4e"
+      "asset": "w16.png",
+      "path": "高清/贝利尔2.png",
+      "bytes": 52738200,
+      "sha256": "b725b8a3de22231df39ad7acaa1b711d5d7b0e7c280ac3156c1a089fb42859ec",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w17.webp",
-      "path": "重返未来1999/贝丽尔4.webp",
-      "bytes": 663288,
-      "sha256": "e47af7612bfe10a920a0d0445399c7824ca9136d9a414c4ba6ea2530d7610d25"
+      "asset": "w17.png",
+      "path": "高清/远坂凛.png",
+      "bytes": 63283616,
+      "sha256": "45521214204d8cf158b128f63ca109e001e9dce9300830b626d5a3d9a43b56ad",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w18.webp",
-      "path": "重返未来1999/贝利尔2.webp",
-      "bytes": 673524,
-      "sha256": "b36c2995a6422433e55c59d5eddc4672f52825a3804d39d4ed133910a1f0845e"
+      "asset": "w18.png",
+      "path": "高清/金蜜卡.png",
+      "bytes": 18141074,
+      "sha256": "86ca7710d0233f88b002e7b7871861bc7e7cdbde629924ece11306041202ba3d",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w19.webp",
-      "path": "重返未来1999/金蜜卡.webp",
-      "bytes": 90284,
-      "sha256": "7b6314711f8c15d05acc4815cdc006aaa62ab40639b8d529006eb07d01f8a1ff"
+      "asset": "w19.jpg",
+      "path": "高清/青缭.jpg",
+      "bytes": 8048120,
+      "sha256": "5b2d7fd3ac030d71aec540eebeece05f2220531cd01d709b8cc42b495eea7736",
+      "note": "已发布（v1 原样复用，不重传）"
     },
     {
-      "asset": "w20.webp",
-      "path": "高清/Vertin.webp",
-      "bytes": 968326,
-      "sha256": "e5b993bbdae2bcb69e2ed767111265fdf16d04b9ea1dfecf87c8cda4c4ee9bef"
+      "asset": "w20.png",
+      "path": "重返未来1999/Vertin.png",
+      "bytes": 3622457,
+      "sha256": "3230075b5f17e9f399029e586f9d4712d646b2240e45d8552fdce8f2106660c9",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w21.webp",
-      "path": "高清/亚丝娜.webp",
-      "bytes": 854820,
-      "sha256": "b64cbefc80984607b5b6d8ab64e15fc5986e8617ffb6cc6d7088d3c5e936fe96"
+      "asset": "w21.png",
+      "path": "重返未来1999/哑谜1.png",
+      "bytes": 4271022,
+      "sha256": "245fc277f4ca51ee3723b66306541ba204f9fa9c55f683ce85d9276e60d9075f",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w22.webp",
-      "path": "高清/哑谜1.webp",
-      "bytes": 1205752,
-      "sha256": "b43416fdd027ed607ca9dc10ecff8c303f34189b725262f354904f562ad4081f"
+      "asset": "w22.png",
+      "path": "重返未来1999/哑谜2.png",
+      "bytes": 3008367,
+      "sha256": "786bf2b235e276e83e405f8c6354306225e44b3ef06d5f78ac29e41899b20a10",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w23.webp",
-      "path": "高清/哑谜2.webp",
-      "bytes": 579820,
-      "sha256": "037dd5d22f2d5846fb0b3600c6b4fcd6a9d4321604632f158e439844ae0e0f9c"
+      "asset": "w23.png",
+      "path": "重返未来1999/小瑞安侬.png",
+      "bytes": 4793748,
+      "sha256": "2be904ce6c570f59a8ed6e29ed4644ff86af69c8bc5a54d7655e8552a221c041",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w24.webp",
-      "path": "高清/小瑞安侬.webp",
-      "bytes": 1828518,
-      "sha256": "7093bb7a7b83cd992b6a963564fbba5a09bc3956230ae87594baddc0670accc9"
+      "asset": "w24.png",
+      "path": "重返未来1999/惠姑.png",
+      "bytes": 1997894,
+      "sha256": "7bdab76d27e79bf1e2848964321e59e08771fb508a771c2cb85639032194fa3f",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w25.webp",
-      "path": "高清/惠姑.webp",
-      "bytes": 371408,
-      "sha256": "1d7732fa4e76b3534c1c15f70b2e322a8af7679958810f3f13770b4960cdb53c"
+      "asset": "w25.png",
+      "path": "重返未来1999/无名者.png",
+      "bytes": 2935571,
+      "sha256": "9205454a25739cfe81e7d3eb5ed10742bf1f2413495abc1a0450334796faac74",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w26.webp",
-      "path": "高清/无名者.webp",
-      "bytes": 652806,
-      "sha256": "b1795cb3f13997d8a0096b69bd11aa21b29afc98a62282e7bf55aa397c3fb532"
+      "asset": "w26.png",
+      "path": "重返未来1999/梁月.png",
+      "bytes": 4595040,
+      "sha256": "23d908c9f128237b434f613afd805c0216e9cdf59d062935a05e72a64caf529b",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w27.webp",
-      "path": "高清/月蔷薇.webp",
-      "bytes": 1278760,
-      "sha256": "9ed46859d0f5699e6022d03e2ceeea829f89592dfae762faceb2ffa5b93a9f39"
+      "asset": "w27.png",
+      "path": "重返未来1999/贝丽尔1.png",
+      "bytes": 2839427,
+      "sha256": "8725d7e58bbeab5c16fcc54c97d7880b639fb85876658c82387fac7a9e63274b",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w28.webp",
-      "path": "高清/梁月.webp",
-      "bytes": 1438850,
-      "sha256": "09fb72bc4eacddb797e5a5df2c7b4ca0ff5163c7d1acd94ace7676ca73542317"
+      "asset": "w28.png",
+      "path": "重返未来1999/贝丽尔3.png",
+      "bytes": 2860722,
+      "sha256": "62d8607c3cdd4f6f347475688d45fc2362e327fb2ab4661bec324ab866da2979",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w29.webp",
-      "path": "高清/梅蕾尔.webp",
-      "bytes": 868636,
-      "sha256": "ad6eb7da5a23f5c392b3f3be09696aaf408b0090dfa5494d0c2263b50b98264b"
+      "asset": "w29.png",
+      "path": "重返未来1999/贝丽尔4.png",
+      "bytes": 4615152,
+      "sha256": "f4ea159fd56056c23b08659ee3846376720d1400417e5b9c765127108ad56a01",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w30.webp",
-      "path": "高清/楪祈.webp",
-      "bytes": 321286,
-      "sha256": "3ffc9cdf264e10cf122200f3455a060bd6c45eb001be071473617d8c9d66d1f6"
+      "asset": "w30.png",
+      "path": "高清/Vertin.png",
+      "bytes": 48903135,
+      "sha256": "0e8f7d5ed7bacbe0ea75952e199dc353634603a31bd444143da803f745b9e057",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w31.webp",
-      "path": "高清/流萤.webp",
-      "bytes": 787048,
-      "sha256": "2d82d37613eeb66fd255bb2e5043888de680222eeeb08bf33e2124f92c81bb51"
+      "asset": "w31.png",
+      "path": "高清/哑谜1.png",
+      "bytes": 50843455,
+      "sha256": "b136bfec5792c89f19cedeca92de5d681bd2f55e99119a95156ba1c2caa24d07",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w32.webp",
-      "path": "高清/物语花绫.webp",
-      "bytes": 584538,
-      "sha256": "a9ad96e4b0103803d030f8c16577dd98042bfc03c54af50d16cb957108fd8ba1"
+      "asset": "w32.png",
+      "path": "高清/哑谜2.png",
+      "bytes": 43206160,
+      "sha256": "ba536c47224b43f28821f47ed8f5385d9bfaf2113d0b02f3291a77c0aea411de",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w33.webp",
-      "path": "高清/贝丽尔1.webp",
-      "bytes": 545778,
-      "sha256": "3af7f0797fe382d10b6a7242c8a77c75db400bd1e2f9bd2105def07df3a48c1f"
+      "asset": "w33.png",
+      "path": "高清/小瑞安侬.png",
+      "bytes": 56498573,
+      "sha256": "332fef1876251b46c341ba3978829311c9b1c4f30ced8885935647424cd66c04",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w34.webp",
-      "path": "高清/贝丽尔3.webp",
-      "bytes": 584646,
-      "sha256": "8858553ffc371d8dd82336a6e16497186f1e2c2d1ac84c882abcc35e4d0ef3ec"
+      "asset": "w34.png",
+      "path": "高清/惠姑.png",
+      "bytes": 43035971,
+      "sha256": "d1fd3f3e0a080b9ec073d9ff05958795174d15065395c38863f4d5e04f97bd8e",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w35.webp",
-      "path": "高清/贝丽尔4.webp",
-      "bytes": 1320110,
-      "sha256": "01f42ad316ec54d25d2989c73d61047c5e5e1e9a44ebcd78668b87365a540028"
+      "asset": "w35.png",
+      "path": "高清/无名者.png",
+      "bytes": 44265410,
+      "sha256": "b798f8e31746d2889f6be4ef62d9555165bbdbb1359f2247fa912ec12a29c994",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w36.webp",
-      "path": "高清/贝利尔2.webp",
-      "bytes": 1025534,
-      "sha256": "7eef55715a74a9a777ecc573f36f8bc36610da309df8a779cd0d53d131bcdf3e"
+      "asset": "w36.png",
+      "path": "高清/梁月.png",
+      "bytes": 51870467,
+      "sha256": "529f24b18cebc8c8eff96acdd3f848bc49fc46971ebc8cb6a342f8a8f094c28d",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w37.webp",
-      "path": "高清/远坂凛.webp",
-      "bytes": 392936,
-      "sha256": "faa0644a7bb987ff1fff52024602e37b9f2bdd41119c053e4461ab12a1377df3"
+      "asset": "w37.png",
+      "path": "高清/贝丽尔1.png",
+      "bytes": 44894489,
+      "sha256": "114f8074b7154a99b5140d78da9e8dcf83e9a1677b9d3887b6c9205d44e69896",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w38.webp",
-      "path": "高清/金蜜卡.webp",
-      "bytes": 310140,
-      "sha256": "64072bc50c76fe961e122d59e8b5bfa9d3b26194ba0dabe332a797edab8f3434"
+      "asset": "w38.png",
+      "path": "高清/贝丽尔3.png",
+      "bytes": 44326975,
+      "sha256": "bc086934c0f75e59478a3798c964b0b1832b9b96b102fa33f5f75c4232805043",
+      "note": "本次新增（原图无损）"
     },
     {
-      "asset": "w39.webp",
-      "path": "高清/青缭.webp",
-      "bytes": 1384964,
-      "sha256": "3252d5e3e2baf92c3762d6429aaea181727d65ed7b62731e9ff699b51f6b066a"
+      "asset": "w39.png",
+      "path": "高清/贝丽尔4.png",
+      "bytes": 47324609,
+      "sha256": "4a4df0925af344e68157249da0facbccd9dc04d4ce034030bf7de2c3d3720358",
+      "note": "本次新增（原图无损）"
     }
   ]
 }
