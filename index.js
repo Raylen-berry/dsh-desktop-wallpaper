@@ -39,21 +39,27 @@ const ROUTE_PREFIX = '/bga/wallpapers'
 const URL_PREFIX = ROUTE_PREFIX + '/'
 const LIST_PATH = '/bga/wallpapers.json'
 const SETTINGS_PATH = '/bga/settings.json'
-// 读取原始文件的最大字节上限 (为容纳超大高清底图, 在宿主内缩到 4K 再输出)。
+// 读取原始文件的最大字节上限 (为容纳超大高清底图)。
 const MAX_BYTES = 128 * 1024 * 1024
 // 输出分辨率目标 (长边):
-//   SERVED_MAX_DIM 3840 = 真正使用时的底图 (4K)
+//   SERVED_MAX_DIM    0 = 真正使用时的底图 —— **不设上限, 原图原样送**。
+//                        (2026-09-13 由 3840 放开: 5120/7680 长边的超宽屏会被 3840 拉成放大模糊。
+//                         代价是浏览器要解码整张 30–44 MP 的图 —— 单张解码后约 120–175 MB 内存,
+//                         切图首帧多等几百毫秒; 本地传输与解码都在秒级以内, 换大屏上的清晰度。)
 //   THUMB_DIM       320 = 「当前底图」小方块 (64×42 CSS)
 //   POSTER_DIM      112 = 类型卡里的迷你缩略图 (57×40 CSS; v1.4.0 由 48 提到 112)
 //   PREVIEW_DIM     640 = 设置页图库网格主图 (150–260 CSS 宽 × 2x 屏; v1.4.0 新增)
-const SERVED_MAX_DIM = 3840
+const SERVED_MAX_DIM = 0
 const THUMB_DIM = 320
 const POSTER_DIM = 112
 const PREVIEW_DIM = 640
 // 派生图 webp 编码质量: poster 只要"先出图", preview 是图库主图, 给高一点。
 const POSTER_QUALITY = 80
 const PREVIEW_QUALITY = 86
-// 运行时 4K/缩略图 缓存 (按 相对路径+大小+mtime 失效), 避免每次请求都重缩。
+// 运行时 缩略图/缩放后 缓存 (按 相对路径+大小+mtime 失效), 避免每次请求都重缩。
+// 只服务「需要缩放」的那条路 (缩略图; 或把 SERVED_MAX_DIM 设回具体数值时)。
+// 送原图那条**不进缓存**: 一张 4x 放大件就 40–60 MB, 39 张全缓存住会常驻约 1.5 GB,
+// 而它省下的只是 OS 页缓存本来就兜住了的读盘 —— 换成内存常驻不划算。
 const servedBufferCache = new Map()
 const thumbBufferCache = new Map()
 // 派生图 (poster/preview) 内存缓存 (按派生 key 哈希), 避免同一进程内重复读盘。
@@ -496,9 +502,9 @@ export async function apply(ctx) {
     },
   }), 'dsh-bg-atelier: fetch route')
 
-  // 读取并(可选)缩放单张底图: 不改动原始文件, 只读原文件后在内存里缩到 4K/缩略图再输出。
-  // kind: ''(原图 4K) | 'thumb'(320) | 'poster'(112px 类型卡迷你图) | 'preview'(640px 图库主图)。
-  // 长边 ≤ 目标的图原样输出。4K/缩略图缓存按 相对路径+大小+mtime 失效。
+  // 读取并(可选)缩放单张底图: 不改动原始文件。
+  // kind: ''(真正使用的底图 —— 默认原图原样, 不设上限) | 'thumb'(320) | 'poster'(112px 类型卡迷你图) | 'preview'(640px 图库主图)。
+  // 长边 ≤ 目标的图原样输出。需要缩放的那条路按 相对路径+大小+mtime 缓存。
   // poster/preview 是"打开即出、不拖慢图库"的关键: 首次生成后写盘到
   // $DSH_HOME/dsh-bg-atelier/{posters,previews}/, 之后重启/再打开都直接读盘, 不再对每张原图重缩。
   // 派生图 (poster/preview) 统一入口: 内存缓存 → 磁盘缓存 → sharp 现生成并落盘。
@@ -538,12 +544,15 @@ export async function apply(ctx) {
     // poster(112px 类型卡) / preview(640px 图库主图) 走"落盘派生图"这条: 只生成一次。
     if (kind === 'poster' || kind === 'preview') return resolveDerived(targetPath, info, kind)
     const thumb = kind === 'thumb'
+    const dim = thumb ? THUMB_DIM : SERVED_MAX_DIM
+    // 不设上限 (dim === 0): 直接把原文件**字节**送出去 —— 不缩放、不重编码、也不进内存缓存。
+    // 这条路上 sharp 完全不参与 ⇒ 省掉一次"解码+重编码"的 CPU 与几秒的首字节等待。
+    if (dim <= 0) return { buffer: await fs.readFile(targetPath), mime: MIME[extOf(targetPath)] }
     const cache = thumb ? thumbBufferCache : servedBufferCache
     const hit = cache.get(key)
     if (hit !== undefined && hit.key === key) return { buffer: hit.buffer, mime: MIME[extOf(targetPath)] }
     let buffer = await fs.readFile(targetPath)
     const sh = await getSharp()
-    const dim = thumb ? THUMB_DIM : SERVED_MAX_DIM
     if (sh) {
       try {
         const meta = await sh(buffer).metadata()
@@ -693,5 +702,8 @@ export async function apply(ctx) {
   const dir = await wallpaperDir()
   // 启动后延时预热派生图: 新丢进来的图不用等第一次打开设置页才缩图。
   scheduleWarmDerived(4000)
-  console.log('[dsh-bg-atelier] host up (v1.4.1), serving ' + dir + ' at ' + URL_PREFIX + '<类型>/<文件>')
+  // 版本号从 package.json 读进来 (原来是硬编码, 早就落后好几个版本了)。
+  let ver = '?'
+  try { ver = JSON.parse(await fs.readFile(path.join(PACKAGE_ROOT, 'package.json'), 'utf8')).version } catch (e) { /* 读不到就显示 ? */ }
+  console.log('[dsh-bg-atelier] host up (v' + ver + '), serving ' + dir + ' at ' + URL_PREFIX + '<类型>/<文件>')
 }
