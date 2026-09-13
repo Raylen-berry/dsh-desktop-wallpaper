@@ -1,5 +1,6 @@
 // ============================================================================
-// dsh-bg-atelier · Host half (packaged, boot-loaded) v1.4.0
+// dsh-bg-atelier · Host half (packaged, boot-loaded)
+// (版本号不写在这儿了 —— 启动日志从 package.json 读, 免得注释先过期)
 // 职责:
 //   1. 通过 webServer 前缀路由 /bga/wallpapers/<类型>/<文件名> 以 HTTP 提供底图,
 //      避免把 base64 大图塞进 Client→Host RPC。
@@ -58,8 +59,10 @@ const POSTER_QUALITY = 80
 const PREVIEW_QUALITY = 86
 // 运行时 缩略图/缩放后 缓存 (按 相对路径+大小+mtime 失效), 避免每次请求都重缩。
 // 只服务「需要缩放」的那条路 (缩略图; 或把 SERVED_MAX_DIM 设回具体数值时)。
-// 送原图那条**不进缓存**: 一张 4x 放大件就 40–60 MB, 39 张全缓存住会常驻约 1.5 GB,
-// 而它省下的只是 OS 页缓存本来就兜住了的读盘 —— 换成内存常驻不划算。
+// 送原图那条**不进缓存**: 39 张合计 820 MB (高清那 20 张就占 764 MB, 单张最大 60 MB),
+// 全缓存住 = 让一个换底图插件常驻 820 MB 内存; 而它省下的只是 OS 页缓存本来就兜住了的读盘。
+// (更正: 这里原先写「约 1.5 GB」是口算错了 —— 把 40–60 MB 套到了全部 39 张上;
+//  真实最坏情况是 39 张字节之和 820 MB。旧代码缓存的是缩到 3840 后的字节, 约 247 MB。)
 const servedBufferCache = new Map()
 const thumbBufferCache = new Map()
 // 派生图 (poster/preview) 内存缓存 (按派生 key 哈希), 避免同一进程内重复读盘。
