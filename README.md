@@ -13,9 +13,10 @@ dsh-bg-atelier/
 ├── client.js         # Client 半端: 类型→图库两级浏览 / 随机换图 / 琉璃卡面 / 特效 / 设置页
 ├── cordis.patch.yml  # bundle 挂载声明 (让 DSH 启动时挂载本插件)
 ├── package.json      # npm 插件清单 (dsh.bundle.patch + dsh.client 客户端声明)
-├── wallpapers/       # 内置底图目录 —— 每个子文件夹 = 一个"底图类型"
-│   ├── 线稿风/          # 例如: 亚丝娜.png / 亚丝娜_高清.png / …
-│   └── 重返未来1999/    # 例如: 维尔汀.png / XXX_高清.png / …
+├── wallpapers/       # 内置底图目录 —— 每个子文件夹 = 一个"底图类型"（v1.6.0 起是压缩过的 .webp）
+│   ├── 线稿风/          # 例如: 亚丝娜.webp / 青缭.webp / …
+│   └── 重返未来1999/    # 例如: Vertin.webp / 梁月.webp / …
+├── wallpapers_orig/  # 压缩前的原始 PNG 留底（**本地专用**，已 gitignore：不进仓库、不进 Release）
 ├── INSTALL.md        # 安装 / 升级 / 卸载指南
 └── README.md
 ```
@@ -36,9 +37,10 @@ dsh plugin --profile web add link:D:\DeepSeek\dsh-plugins\dsh-desktop-wallpaper
 
 ## 放入/更换底图（按类型）
 
-**开箱即用**：插件内置 **线稿风** 类型共 11 张底图（亚丝娜 / 月蔷薇 / 流萤 / 物语花绫 / 远坂凛 / 青缭 及其高清版，随包分发，原始图未改动），
-设置 → 底图工坊 → 点类型卡「线稿风」进入图库即可选。**大图不走 Git LFS**（`.gitattributes` 自 v1.3.0 起不再按 lfs 过滤），
-所以 clone 不需要装 git-lfs；代价是个别 50MB 级高清图会触发 GitHub 的大文件提示（推得上去，但会永久留在仓库历史里）。
+**开箱即用**：插件内置 **4 个类型共 39 张底图**（二次元 2 / 线稿风 5 / 重返未来1999 12 / 高清 20）。
+clone 完先在插件目录跑一次 `node tools/fetch-wallpapers.mjs`（或设置页点「**下载底图**」）把图取回来，再重启 DSH；
+设置 → 底图工坊 → 点类型卡进入图库即可选。**图片不进 git**（v1.5.5 起改走 Release 资产，见下面 A 节），
+所以 clone 只有代码、很快；`wallpapers/` 里的 `.webp` 是 v1.6.0 起统一压缩过的发布版（口径见 A 节）。
 
 **加一个新类型/新图**：把图片放进「放图目录」下**一个子文件夹 = 一个类型**，例如：
 
@@ -103,19 +105,27 @@ host 每次实时解析、按需刷新，设置页点「刷新」即出现新类
 > `dsh-browser-live` 要装浏览器扩展），但下面几条必须先看清楚。
 > （起因：用户 2026-09-12 反馈"工作电脑上传、回家发现可用性很差、必须手动操作"。）
 
-**A. 克隆体积（v1.5.5 起：图不进 git，改为 Release 资产 + 按需下载）**
-19 张底图合计约 **333 MB**，长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
-v1.5.5 起仓库只留 `wallpapers.manifest.json`（每张图的路径 + 字节数 + sha256），图片作为 Release 资产发布：
+**A. 克隆体积（v1.5.5 起：图不进 git，改为 Release 资产 + 按需下载；v1.6.0 起改用新 tag `wallpapers-v2`）**
+39 张底图压缩后合计约 **24 MB**（`wallpapers-v1` 那版是 19 张原始 PNG / 349 MB），
+长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
+仓库只留 `wallpapers.manifest.json`（每张图的路径 + 字节数 + sha256），图片作为 Release 资产发布：
 
 ```powershell
 git clone https://github.com/Raylen-berry/dsh-desktop-wallpaper.git   # 只有代码，很快
-cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs           # 从 Release 取回 19 张（可重入/断点续传）
+cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs           # 从 Release 取回 39 张（可重入/断点续传）
 node tools/fetch-wallpapers.mjs --check                              # 只校验本机现有图（不联网）
 ```
-设置页里同一个入口是「**下载底图**」按钮（显示进度、逐张校验 sha256；已存在且校验通过的跳过 ⇒ 断网了再点一次即可）。
-图片有变动时跑 `node tools/make-wallpaper-manifest.mjs` 重新生成清单再发版。
 
-> **迁移顺序（重要）**：先把 19 张作为 Release 资产发布并验证下载可用，**再**把 `wallpapers/` 从 git 移除；
+**压缩口径（v1.6.0 定的，别再用原始 PNG 发版）**：统一转 WebP。宽度 > 3840 的先按 lanczos3 缩到 3840
+（`高清/` 那批是 9744×4500 的 4x 放大件，显示器上用不到那个尺寸），小图（<8 MB）同时试无损编码、取更小的那个，
+其余用 `q92` 有损。压缩前 820 MB → 24 MB（省 97.1%）。**原始 PNG 留底在 `wallpapers_orig/`（本地、gitignore）
+与原图目录 `E:\壁纸`，随时可还原**；`wallpapers-v1` 那个旧 Release 也仍在（清单已不引用它）。
+
+设置页里同一个入口是「**下载底图**」按钮（显示进度、逐张校验 sha256；已存在且校验通过的跳过 ⇒ 断网了再点一次即可）。
+图片有变动时跑 `node tools/make-wallpaper-manifest.mjs` 重新生成清单再发版
+（换 Release tag 用环境变量：`$env:WALLPAPER_RELEASE_TAG='wallpapers-v3'; node tools/make-wallpaper-manifest.mjs`）。
+
+> **迁移顺序（重要）**：先把 39 张作为 Release 资产发布并验证下载可用，**再**把 `wallpapers/` 从 git 移除；
 > 反了的话，新克隆在 Release 就绪前一张图都拿不到。图片从 git 移除之前，`git sparse-checkout add wallpapers`
 > 仍可按需从 git 取图（离线机器适用）。
 
@@ -183,6 +193,16 @@ dsh plugin --profile web remove dsh-bg-atelier
 
 ## 版本
 
+- v1.6.0：**底图改成压缩版发布（39 张 · 24 MB）+ 补齐此前漏发的 20 张**
+  - 底图从 `wallpapers-v1`（19 张原始 PNG / 349 MB）换成 `wallpapers-v2`（39 张 WebP / 24.2 MB）：
+    宽度 > 3840 的先按 lanczos3 缩到 3840（`高清/` 那批是 9744×4500 的 4x 放大件，显示器上用不到那个尺寸），
+    统一转 WebP（小图试无损、取更小者，其余 `q92`）。压缩前 820 MB → 24 MB，省 97.1%，39 张 0 失败。
+  - 顺带补齐 **20 张从没发过 Release 的图**（9/12 的梁月 / 无名者 / 小瑞安侬 / 哑谜1 / 哑谜2 与 9/13 的
+    贝丽尔1 / 贝丽尔3 / 贝丽尔4 / 惠姑 / Vertin，各含普通 + 高清两份）—— 在此之前清单里有的图远端没有，
+    别的机器点「下载底图」会恰好在这 20 张上 404。
+  - `贝利尔.png` 已改名 `贝利尔2.png`（4x 版同步改名），清单里的路径跟着更新；改名后 `高清` 类型内编号
+    也变了（楪祈 10 → 11），已同步写回本机 `$DSH_HOME/dsh-bg-atelier/settings.json` 的当前底图记录。
+  - 原始 PNG 全部留底在 `wallpapers_orig/`（gitignore，不进仓库、不进 Release）。
 - v1.5.4：**粒子数量随画布宽度走（密度不再随屏宽变）+ 卡面阴影独立成开关**
   - **数量适配屏宽**（用户 2026-09-12："如果你限定数量，在我小屏显示的时候，密度就会很大，
     你现在需要全改数量为适配屏宽的类型了"）。做法：每个特效定义一个**间距**（px/颗），
