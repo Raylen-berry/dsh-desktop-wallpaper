@@ -22,6 +22,9 @@ const CHECKS = []
 const SUITES = [
   'tools/test-download-robustness.mjs',
   'tools/verify-dockfx-bounds.mjs',
+  // 底图去重（贝利尔两对：同内容两个名字 → 硬链接）。离线自足：清单校验那几项在 CI 照跑，
+  // 只有"读真图"的 ①②③ 在没有 wallpapers/ 时打 SKIP（图片不进 git）。
+  'tools/verify-wallpaper-dedup.mjs',
 ]
 
 const EXCLUDED = [

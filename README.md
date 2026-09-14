@@ -240,6 +240,15 @@ dsh plugin --profile web remove dsh-bg-atelier
 - 样式自包含注入（`data-bg-atelier-styles`），不依赖 `styles` 全局。
 - `webServer` prefix 路由匹配规则 `pathname === prefix || startsWith(prefix + '/')`，注册路径不带尾斜杠。
 - Host 日志 `[dsh-bg-atelier]`（harness 控制台），Client 日志在浏览器 DevTools。
+- **本地底图去重只能建硬链接，不能删名字**：图库列表是**实时扫盘**（`scanTypeDir`/`listTypeDirs` 走 `fs.readdir`），
+  `wallpapers/` 下每个受支持文件都会变成设置页里的一张图 ⇒ **删掉一个重复名字会改变用户看到的列表**。
+  用硬链接则两个名字都还在、共享同一份字节（同一 inode），列表/URL/已有设置里的引用全不变，磁盘只存一份。
+  工具：`node tools/dedup-hardlink.mjs [--dry-run|--pairs]`；断言：`tools/verify-wallpaper-dedup.mjs`（在 `run-all.mjs` 的 SUITES 里）。
+  ⚠️ **`node:fs` 的 `linkSync` 在这台机器/卷上会原生崩进程**（exit `0xC0000409`，STATUS_STACK_BUFFER_OVERRUN，
+  没有异常栈、进程直接消失），所以工具里建链走 PowerShell 的 `New-Item -ItemType HardLink`（`CreateHardLinkW`），
+  扫描/哈希/判定仍留在 node。
+- **硬链接不影响仓库体积**：`/wallpapers/` 在 `.gitignore` 里（底图走 Release 资产、不进 git），
+  所以去重只省**本机磁盘**，`git clone` 的体积一个字节都不变 —— 别把这两件事混为一谈。
 
 ## 版本
 
