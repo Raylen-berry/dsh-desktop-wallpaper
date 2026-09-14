@@ -98,6 +98,31 @@ host 每次实时解析、按需刷新，设置页点「刷新」即出现新类
 > host 半在启动时发现自家 `settings.json` 缺 `chatWidth / chatWidthEnabled`，就一次性从
 > `$DSH_HOME\dsh-bg-atelier\settings.json` 搬过去并写盘。本插件此后不再碰这些字段。
 
+## 发布前检查（CI 与本地同一条命令）
+
+push / PR 都会跑 `.github/workflows/ci.yml`，它只做一件事：`npm test`。本地跑的就是同一条命令，
+**不装任何依赖、不联网、不做任何真实下载**：
+
+```bash
+npm test                       # = node tools/run-all.mjs
+node tools/run-all.mjs --list  # 只看清单：跑哪些、以及哪些被排除、为什么
+```
+
+`tools/run-all.mjs` 把每套都跑完再汇总，任一套非 0 退出 ⇒ `npm test` 退出码 1 ⇒ CI 变红。
+CI 用 Node 20/22/24 三档矩阵、windows-latest。
+
+本机实测（Node 24.9.0）参与门禁的两套：
+
+| 套件 | 本机结果 |
+| --- | --- |
+| `tools/test-download-robustness.mjs` | 42 项通过（自带假 HTTP 服务，零请求出网） |
+| `tools/verify-dockfx-bounds.mjs` | 全部 PASS |
+
+**未纳入 CI** 的步骤（原因同时写在 `tools/run-all.mjs` 的 `EXCLUDED` 里）：
+`tools/fetch-wallpapers.mjs --check`（要本机已备好 39 张 820MB 底图，图片不进 git ⇒ CI 上必然失败；
+而且这个脚本本身就会**真实下载**，绝不能进 CI）、
+`tools/test-served-bytes.mjs`（要 `wallpapers/` 里的真实图片才能起供图路由断言，离线实测退出码 1）。
+
 ## 换台机器：可迁移性与**必须手动的步骤**
 
 > 给后续在任何一台机器上接手的人或 agent：**装本插件不需要任何手工点击**（不像
