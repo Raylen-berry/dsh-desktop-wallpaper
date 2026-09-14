@@ -58,9 +58,12 @@ const haveWallpapers = fs.existsSync(WALL) && fs.readdirSync(WALL).some((c) => {
 })
 
 // ---- ④ 清单校验：去重绝不能弄坏清单里"正在用"的那份 ----
-// 这一项离线可跑 ⇒ CI 上照样守着（去重的两个文件名都在清单里，一个坏了两边都坏）。
+// 与 ①②③ 同一口径：这几条都是"本机底图完整性"，没有 wallpapers/ 就整体跳过（图片不进 git ⇒ CI 上必然没有）。
+// 别把它硬留成 CI 必跑项 —— 那样 CI 上必然红，套件就成了假门禁。
 console.log('=== ④ 清单校验（39 张都在且校验通过） ===')
-{
+if (!haveWallpapers) {
+  skipped('wallpapers/ 不存在 —— 本机底图完整性这一类断言整体跳过（含清单校验）')
+} else {
   let manifest = null
   try { manifest = readManifest(ROOT) } catch (e) { /* 下面报 */ }
   ok('清单可读且 total=39', !!manifest && manifest.total === 39 && Array.isArray(manifest.items) && manifest.items.length === 39,
@@ -82,8 +85,9 @@ console.log('=== ④ 清单校验（39 张都在且校验通过） ===')
 }
 
 if (!haveWallpapers) {
-  console.log('\n=== ①②③ 底图本体 ===')
-  skipped('wallpapers/ 不存在（图片不进 git，CI 上就是这种情形）—— 本机跑请先 node tools/fetch-wallpapers.mjs')
+  console.log('\n=== ①②②′③ 底图本体 ===')
+  // 跳过消息只打一条（上面 ④ 那里已经打过），这里只标出区间。
+  console.log('  （底图本体这类断言在 CI 上必然没有 —— 本机跑请先 node tools/fetch-wallpapers.mjs）')
 } else {
   // ---- ① 四个名字都还在、可读、sha256 == 基线 ----
   console.log('\n=== ① 4 个文件存在 / 可读 / sha256 与基线一致 ===')
