@@ -12,6 +12,8 @@
 //  · 已存在且校验通过的一律跳过 ⇒ 可重入、可断点续传（重跑只补缺的）。
 //  · 单张失败不中断其余（收集到 errors 里返回），因为"19 张里差 2 张"比"一张都不下"有用得多。
 //  · 并发默认 3 —— 家用宽带下够快，又不会把 GitHub 或自己的磁盘打满。
+//  · 单张有**时间预算**（timeoutMs，默认 300000）：慢连接不会让任务无限停在"下载中"，超时算一次失败、走退避重试。
+//  · **流式下载**：边收边写 .part、边累计 sha256，字节数一超清单值立刻中止 —— 不把整张图（最大 60.4MB）读进内存。
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -19,6 +21,11 @@ import { fileURLToPath } from 'node:url'
 
 export const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const MANIFEST_FILE = 'wallpapers.manifest.json'
+
+/** 单张下载的时间预算（毫秒）。清单里最大的一张 63283616 B（60.4MB），家用宽带预留足够余量。 */
+export const DEFAULT_TIMEOUT_MS = 300000
+/** 单张下载的重试次数（不含首次尝试）。 */
+export const DEFAULT_RETRIES = 2
 
 export function readManifest(pluginDir = PLUGIN_DIR) {
   const f = path.join(pluginDir, MANIFEST_FILE)
@@ -38,28 +45,113 @@ export function checkLocal(file, item) {
   } catch { return { state: 'missing', bytes: 0 } }
 }
 
+// 失败分类：HTTP 错误 / 字节数不符 / sha256 不符 / 超时 / 已取消。
+// 外部取消（opts.signal）立即停、**不重试**；其余都算"一次失败"、照常退避重试。
+class DownloadError extends Error {
+  constructor(message, { retryable = true } = {}) { super(message); this.name = 'DownloadError'; this.retryable = retryable }
+}
+const timeoutError = (ms) => new DownloadError('下载超时：' + ms + 'ms 内没下完（可用 opts.timeoutMs 覆盖）')
+const abortError = () => new DownloadError('已取消：外部 signal 触发，立即停止（不重试）', { retryable: false })
+const aborted = (sig) => !!(sig && sig.aborted)
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function downloadOne(url, item, opts) {
+/** 边收边写 dst、边累计 sha256 与字节数；字节数一超清单值立刻抛，不把响应读完。 */
+function streamToFile(body, item, dst) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256')
+    const ws = fs.createWriteStream(dst)
+    let received = 0
+    let settled = false
+    const fail = (err) => { if (!settled) { settled = true; try { ws.destroy() } catch {} ; reject(err) } }
+    const ok = () => { if (!settled) { settled = true; resolve({ bytes: received, sha256: hash.digest('hex') }) } }
+    ws.on('error', fail)
+    const write = (buf) => new Promise((res, rej) => {
+      ws.write(buf, (err) => (err ? rej(err) : res()))
+    })
+    ;(async () => {
+      try {
+        for await (const chunk of body) {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          if (!buf.length) continue
+          received += buf.length
+          if (received > item.bytes) {
+            // 清单说只有 item.bytes，多出来的第 1 字节就中止 —— 不等下完
+            return fail(new DownloadError('字节数不符：已收到 ' + received + '，清单写 ' + item.bytes + '（超长立刻中止，响应未读完）'))
+          }
+          hash.update(buf)
+          await write(buf)
+        }
+        await new Promise((res, rej) => ws.end((err) => (err ? rej(err) : res())))
+        if (received !== item.bytes) return fail(new DownloadError('字节数不符：收到 ' + received + '，清单写 ' + item.bytes))
+        ok()
+      } catch (e) { fail(e) }
+    })()
+  })
+}
+
+async function downloadOne(url, item, tmp, opts) {
+  const retries = Number.isInteger(opts.retries) && opts.retries >= 0 ? opts.retries : DEFAULT_RETRIES
+  const timeoutMs = Number.isInteger(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : DEFAULT_TIMEOUT_MS
+  const outer = opts.signal
   let lastErr = null
-  for (let attempt = 0; attempt <= (opts.retries || 2); attempt++) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (aborted(outer)) throw abortError()          // 外部取消：立刻停，也不重试
     if (attempt) await sleep(400 * attempt * attempt)   // 退避
+    const ac = new AbortController()
+    const onOuterAbort = () => ac.abort()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    if (outer) outer.addEventListener('abort', onOuterAbort, { once: true })
     try {
-      if (typeof fetch !== 'function') throw new Error('本机 Node 没有全局 fetch（需要 Node 18+）')
-      const res = await fetch(url, { headers: { 'user-agent': 'dsh-bg-atelier' }, redirect: 'follow' })
-      if (!res.ok) throw new Error('HTTP ' + res.status + (res.status === 404 ? '（Release 资产还没发布？）' : ''))
-      const buf = Buffer.from(await res.arrayBuffer())
-      if (buf.length !== item.bytes) throw new Error('字节数不符：拿到 ' + buf.length + '，清单写 ' + item.bytes)
-      const got = sha256(buf)
-      if (got !== item.sha256) throw new Error('sha256 不符：拿到 ' + got.slice(0, 12) + '…，清单写 ' + item.sha256.slice(0, 12) + '…')
-      return buf
-    } catch (e) { lastErr = e }
+      if (typeof fetch !== 'function') throw new DownloadError('本机 Node 没有全局 fetch（需要 Node 18+）')
+      let res
+      try {
+        res = await fetch(url, { headers: { 'user-agent': 'dsh-bg-atelier' }, redirect: 'follow', signal: ac.signal })
+      } catch (e) {
+        if (aborted(outer)) throw abortError()
+        if (ac.signal.aborted) throw timeoutError(timeoutMs)
+        throw new DownloadError('请求失败：' + String((e && e.message) || e))
+      }
+      if (!res.ok) throw new DownloadError('HTTP ' + res.status + (res.status === 404 ? '（Release 资产还没发布？）' : ''))
+      try {
+        let got
+        if (!res.body || typeof res.body[Symbol.asyncIterator] !== 'function') {
+          // 极端降级：运行时没有可迭代的响应体流（Node 18+ 的 undici 一定有）
+          const buf = Buffer.from(await res.arrayBuffer())
+          if (buf.length !== item.bytes) throw new DownloadError('字节数不符：收到 ' + buf.length + '，清单写 ' + item.bytes)
+          fs.writeFileSync(tmp, buf)
+          got = { bytes: buf.length, sha256: sha256(buf) }
+        } else {
+          got = await streamToFile(res.body, item, tmp)
+        }
+        // 字节数与 sha256 都对上了才算成功（此时 tmp 已完整落盘）
+        if (got.sha256 !== item.sha256) {
+          throw new DownloadError('sha256 不符：收到 ' + got.sha256.slice(0, 12) + '…，清单写 ' + item.sha256.slice(0, 12) + '…')
+        }
+        return got
+      } catch (e) {
+        if (aborted(outer)) { ac.abort(); throw abortError() }
+        if (ac.signal.aborted) throw timeoutError(timeoutMs)
+        if (e instanceof DownloadError) { ac.abort(); throw e }   // 校验不通过：顺手掐掉还没读完的响应体
+        throw new DownloadError('读取响应失败：' + String((e && e.message) || e))
+      }
+    } catch (e) {
+      if (aborted(outer) || e.retryable === false) throw e    // 取消：不重试、也不说是"重试耗尽"
+      lastErr = e
+    } finally {
+      clearTimeout(timer)
+      if (outer) outer.removeEventListener('abort', onOuterAbort)
+    }
   }
-  throw lastErr || new Error('未知错误')
+  throw lastErr || new DownloadError('未知错误')
 }
 
 /**
  * 取回缺的底图。
+ * @param {object} [opts]
+ * @param {number} [opts.retries=2] 单张重试次数（不含首次尝试）；必须是非负整数，非法值回落到 2。0 = 只试一次。
+ * @param {number} [opts.timeoutMs=300000] 单张时间预算；超时算一次失败、走退避重试。必须正整数，非法值回落到 300000。
+ * @param {AbortSignal} [opts.signal] 外部取消信号；触发后立即停止且不再重试（错误消息标明"已取消"）。
  * @returns {Promise<{ok:boolean,total:number,downloaded:number,skipped:number,failed:number,bytes:number,errors:Array}>}
  */
 export async function fetchWallpapers(opts = {}) {
@@ -82,17 +174,21 @@ export async function fetchWallpapers(opts = {}) {
       if (state === 'ok') {
         out.skipped++
       } else {
+        // 先写 target.part，校验通过才 rename 到最终路径 —— 既有约定不变
+        const tmp = target + '.part'
+        let renamed = false
         try {
           fs.mkdirSync(path.dirname(target), { recursive: true })
-          const buf = await downloadOne(manifest.release.base + '/' + item.asset, item, opts)
-          const tmp = target + '.part'
-          fs.writeFileSync(tmp, buf)
+          const got = await downloadOne(manifest.release.base + '/' + item.asset, item, tmp, opts)
           fs.renameSync(tmp, target)
+          renamed = true
           out.downloaded++
-          out.bytes += buf.length
+          out.bytes += got.bytes
         } catch (e) {
           out.failed++
           out.errors.push({ asset: item.asset, path: item.path, error: String((e && e.message) || e) })
+        } finally {
+          if (!renamed) { try { fs.unlinkSync(tmp) } catch {} }
         }
       }
       done++
