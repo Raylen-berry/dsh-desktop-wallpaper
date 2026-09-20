@@ -92,7 +92,7 @@ host 每次实时解析、按需刷新，设置页点「刷新」即出现新类
 - 设置持久化到 host 侧文件 `$DSH_HOME\dsh-bg-atelier\settings.json`，重启 DSH 后保留上次选择。
 
 > **v1.3.0 起不再提供「对话页固定宽度」**：那一节（开关 + 640–3840px 滑杆 + 常用宽度快捷键）
-> 已整体移到 **dsh-cache-control** 的设置页 **「会话策略」→ ④ 对话页**。钉的是同一组
+> 已整体移到 **dsh-cache-control** 的设置页 **「会话策略」→ ⑥ 对话页**。钉的是同一组
 > `--dsh-chat-content-width / --dsh-composer-card-max-width / --dsh-chat-user-width`
 > 变量，两边同时开只会互相覆盖，所以本插件这边彻底删净。数值不用重设：cache-control 的
 > host 半在启动时发现自家 `settings.json` 缺 `chatWidth / chatWidthEnabled`，就一次性从
@@ -429,7 +429,7 @@ dsh plugin --profile web remove dsh-bg-atelier
   排查用的对照实验：同一页面渲染 `round / superellipse(1.5) / superellipse(2) / superellipse(4)`
   四种 `border-radius:50%` 方块，长得和你截图里那颗"圆角矩形"一致的是 `superellipse(1.5)`。
 - v1.3.0：**职责收敛** —— 「对话页固定宽度」整节（开关、640–3840px 滑杆、常用宽度快捷键、
-  钉 `--dsh-chat-*` 三个变量的实现与补写观察器）移交 **dsh-cache-control**（设置页「会话策略」④ 对话页），
+  钉 `--dsh-chat-*` 三个变量的实现与补写观察器）移交 **dsh-cache-control**（设置页「会话策略」⑥ 对话页），
   客户端状态里不再有 `chatWidth` / `chatWidthEnabled`，`dynamicCss` 也不再输出 `:root{--dsh-chat-user-width…}`
   兜底；本插件只剩底图 / 配色 / 卡面 / 特效。旧值由那边启动时一次性搬走，用户无需重设。
 - v1.2.0：底图工坊性能与体验 —— 图库只加载缩略图（host 缩略图改强缓存、原图点选后才加载）、

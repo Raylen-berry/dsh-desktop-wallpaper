@@ -20,7 +20,7 @@
 //     只做即时预览, 松手/失焦才保存, 不再逐格触发全页重渲染。
 //   v1.3 职责收敛 (会话外观类开关集中到一处):
 //   - 「对话页固定宽度」整节 (UI + 状态 + 那三个 --dsh-chat-* 变量的钉法 +
-//     MutationObserver) 移交 dsh-cache-control 的设置页「会话策略 · ④ 对话页」;
+//     MutationObserver) 移交 dsh-cache-control 的设置页「会话策略 · ⑥ 对话页」;
 //     本插件只留底图 / 配色 / 卡面 / 特效。磁盘旧值由那边启动时一次性搬走,
 //     用户不需要重设。
 // ============================================================================
@@ -966,7 +966,7 @@ var ItemGrid = React.memo(function ItemGrid(props) {
 // ------------------------------------------------------ 对话页宽度：已迁出 --
 // v1.2.0 之前这里有一整块「对话页固定宽度」实现（findChatRoot / pinChatWidth /
 // applyChatWidth + 设置页 Section + 常用宽度快捷键 + MutationObserver）。
-// v1.3.0 起整体移交 dsh-cache-control（设置页「会话策略」→ ④ 对话页）：
+// v1.3.0 起整体移交 dsh-cache-control（设置页「会话策略」→ ⑥ 对话页）：
 // 那边钉的是同一组 --dsh-chat-content-width / --dsh-composer-card-max-width /
 // --dsh-chat-user-width 变量，磁盘上的旧值也由它首次启动时读
 // $DSH_HOME/dsh-bg-atelier/settings.json 一次性搬走。本插件不再碰这些变量。
@@ -1265,7 +1265,7 @@ function SettingsPage() {
           s.cardShadow !== false, function (v) { STORE.set({ cardShadow: v }) })),
       h('div', { className: 'bga-fxopts' }, fxOpts)),
     // 这里原本的「对话页」(固定会话列宽) 一节已移到 dsh-cache-control 的设置页
-    // 「会话策略」→ ④ 对话页 (v1.3.0)。移走的只是这一节 UI 与那三个 CSS 变量:
+    // 「会话策略」→ ⑥ 对话页 (v1.3.0)。移走的只是这一节 UI 与那三个 CSS 变量:
     // 底图 / 配色 / 卡面 / 特效仍然全归本插件。
     h('p', { className: 'bga-note' },
       '设置自动保存到 DSH 配置目录 (host 侧 settings.json), 重启后恢复上次选择。底图与特效由 bg-atelier 插件提供, 停用插件即完全还原, 不改动任何底层文件。对话页固定宽度改在「会话策略」插件里设置。'))
@@ -1332,7 +1332,7 @@ function apply(ctx) {
     }, 'bga-watch')
 
     // 「对话页固定宽度」连同它的 MutationObserver 已在 v1.3.0 整体移交给
-    // dsh-cache-control (设置页 · 会话策略 · ④ 对话页)：那边钉的是同一组
+    // dsh-cache-control (设置页 · 会话策略 · ⑥ 对话页)：那边钉的是同一组
     // --dsh-chat-* 变量, 两边同时开会互相盖来盖去, 所以这里必须彻底删净。
 
     if (slots !== undefined) {
