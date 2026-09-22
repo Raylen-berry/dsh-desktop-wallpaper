@@ -81,3 +81,19 @@ dsh plugin --profile web remove dsh-bg-atelier
   `dsh.profile.bundles`，且已**重启一次** DSH Desktop。
 - **底图选择不记住**：设置持久化到 host 侧文件 `$DSH_HOME\dsh-bg-atelier\settings.json`，
   重启 DSH 后自动恢复上次选择（旧版根目录 URL 也会自动对回新类型里的文件）。
+
+## WE 壁纸库（v1.7.0）
+
+设置页「底图工坊 → Wallpaper Engine 库」：列出本机 WE 订阅/本地项目，点卡片即铺成 DSH 背景。
+
+- **改完 host 半必须重启 DSH Desktop**：`/bga/we/*` 与 `/bga/we/still…` 都是 host 路由，
+  在 bundle 挂载时注册（实测：只改插件文件、只改 `cordis.patch.yml` 都不会触发热重载）。
+  client 半相反，是按请求重建的，刷新窗口即可。
+- **scene 类高清静态图**：WE 只给 192×192 的 `preview.gif`，铺 4K 屏等于放大约 10 倍。
+  host 现在会解 `scene.pkg`（PKGV00200 容器 + .tex 解码，见 `we/pkg.js`/`we/tex.js`/`we/still.js`）
+  合成一张 4367×2456 的静态图，落盘在 `$DSH_HOME\dsh-bg-atelier\we-stills\<id>.webp`（约 1 MB）。
+  首次约 5s，之后直接读盘；客户端先铺 gif、生成好了自动换上。
+  近似之处（不重写 WE 渲染器）：相机用"整屏覆盖层"矩形推断、origin 按中心解释、
+  puppet 骨骼层用最近的非骨骼祖先近似、特效（blur/水波/音频响应/脚本动画）不渲染。
+  想要**动态**就只能回到 gif；想要"动得对"需要 WE 的运行时，本插件不做。
+
