@@ -21,6 +21,7 @@ const CHECKS = []
 
 const SUITES = [
   'tools/test-download-robustness.mjs',
+  'tools/test-we-decode.mjs',
   'tools/verify-dockfx-bounds.mjs',
   // 底图去重（贝利尔两对：同内容两个名字 → 硬链接）。离线自足：清单校验那几项在 CI 照跑，
   // 只有"读真图"的 ①②③ 在没有 wallpapers/ 时打 SKIP（图片不进 git）。
@@ -28,8 +29,9 @@ const SUITES = [
 ]
 
 const EXCLUDED = [
-  ['tools/fetch-wallpapers.mjs --check', '要本机已备好 39 张 820MB 底图（图片不进 git ⇒ CI 上必然失败）；这个脚本本身还会**真实下载**，绝不能进 CI'],
+  ['tools/fetch-wallpapers.mjs --check', '要本机已备好全部底图（55 张 / 约 1.25GB，图片不进 git ⇒ CI 上必然失败）；这个脚本本身还会**真实下载**，绝不能进 CI'],
   ['tools/test-served-bytes.mjs', '要 wallpapers/ 里的真实图片才能起供图路由断言（离线跑本机复现退出码 1：没有 wallpapers/）'],
+  ['tools/make-release.mjs --dry-run', '唯一不上传的分支也要**联网**查 Release 资产表 ⇒ CI（尤其 GitHub Actions 自带 GITHUB_TOKEN 时）不该顺手打外网 API；发布机上手动跑'],
 ]
 
 const ENV = {}

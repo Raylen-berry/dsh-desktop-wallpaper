@@ -6,3 +6,9 @@ tools/out/
 
 # 底图本体不进仓库（放 GitHub Release 资产，仓库只留清单 wallpapers.manifest.json）
 /wallpapers/
+
+# WE 接管过程的一次性补丁包快照（mA~mE/patch1~3），已过期、无代码引用
+dsh-we-*.zip
+
+# 本机网络绕行配置（一行 PROXY=http://127.0.0.1:<port>，见 fetch-wallpapers.js 头部注释）——机器专属, 不进仓库
+.env.local

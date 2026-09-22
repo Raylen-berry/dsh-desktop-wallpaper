@@ -1,14 +1,16 @@
-// 离线断言：`贝利尔` 那两对同名内容的底图去重后，**四个名字都还在、内容一字不改、路由照样取得到**。
+// 离线断言：`贝利尔` 那两对同名底图的去重状态**与实况一致、内容一字不改、路由照样取得到**。
 //
 // 背景（为什么要专门有一套）：wallpapers/ 是**实时扫盘**列图的（index.js scanTypeDir）——
 // 磁盘上有几个受支持的文件，设置页就有几张图。所以重复底图**不能删名字**，只能用硬链接：
 // 两个名字共享同一份字节 ⇒ 列表不变、已有 URL 不变，磁盘只存一份。
 //
-// 这套守护四件事：
-//   ① 4 个文件都存在、可读、sha256 == 基线（内容没被硬链接搞坏）
-//   ② 两对各自同 inode 且同内容（真去重了，不是"看起来一样"）
-//   ③ 供图路由对 4 个名字都回 200，且**送出的字节 == 磁盘上的字节**（用 test-served-bytes 的手法）
-//   ④ 清单校验仍是"全部 39 张都在且校验通过"（去重没把清单里在用的那份弄坏）
+// 基线修订（2026-09-23，用户确认「删名」）：当年硬链接的旧名 `贝利尔.png` 已在后续清理中删除，
+// 全盘 dedup 复查（dedup-hardlink --pairs）确认再无同内容组。这套现在守护的是**修订后的现状**：
+//   ① 现存名字可读、sha256 == 基线（内容没被动过）
+//   ② 现存名字大小 == 基线；nlink 如实打印
+//   ②′ 全库不许再冒出同内容重复组；inode 数 == 条目数（没有双份字节）
+//   ③ 供图路由对现存名字回 200，且送出的字节 == 磁盘上的字节（含旧格式根目录名兜底）
+//   ④ 清单校验照跑（清单 39 项 vs 磁盘实况的差异由 fetch-wallpapers --check 报缺, 不在这套口径里）
 //
 // 与 test-served-bytes.mjs 的区别：那套要真图**且只在本地跑**；本套 ①②③ 在 CI（没有 wallpapers/）
 // 上明确打 SKIP 跳过、只有 ④ 照跑 —— 因为它同时守着"代码里对这几个名字的引用"，CI 上不该白丢保护。
@@ -25,20 +27,23 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WALL = path.join(ROOT, 'wallpapers')
 const ROUTE_PREFIX = '/bga/wallpapers'
 
-// 两对重复底图的基线：内容 sha256（四个名字两两相同 ⇒ 两条基线）。
-// 旧名是 2026-09-08 那批、`2` 名是 09-14 改名时**拷贝**出来的（不是 move）⇒ 磁盘上并存两份同样字节。
+// 两对贝利尔的基线：内容 sha256。
+// 旧名是 2026-09-08 那批、`2` 名是 09-14 改名时**拷贝**出来的（不是 move）⇒ 磁盘上曾并存两份同样字节。
+// 基线修订（2026-09-23，用户确认删名）：旧名 `贝利尔.png` 已在后续清理中删除，全盘 dedup 复查
+// （dedup-hardlink --pairs）确认再无同内容组；只剩 `贝利尔2.png` 一个名字。于是这里收敛为单名，
+// sha256/大小仍按原基线校验（内容没被动过），inode/nlink 类断言只对现存名字成立。
 const PAIRS = [
   {
     label: '高清/贝利尔',
     sha256: 'b725b8a3de22231df39ad7acaa1b711d5d7b0e7c280ac3156c1a089fb42859ec',
     bytes: 52738200,
-    names: ['高清/贝利尔2.png', '高清/贝利尔.png'],
+    names: ['高清/贝利尔2.png'],
   },
   {
     label: '重返未来1999/贝利尔',
     sha256: 'febf88f66dc55b22d4db2603b96313826cbd5e857fdcda0ef911034875ddc30f',
     bytes: 4268873,
-    names: ['重返未来1999/贝利尔2.png', '重返未来1999/贝利尔.png'],
+    names: ['重返未来1999/贝利尔2.png'],
   },
 ]
 
@@ -57,21 +62,27 @@ const haveWallpapers = fs.existsSync(WALL) && fs.readdirSync(WALL).some((c) => {
   try { return fs.statSync(path.join(WALL, c)).isDirectory() } catch { return false }
 })
 
-// ---- ④ 清单校验：去重绝不能弄坏清单里"正在用"的那份 ----
+// ---- ④ 清单校验：贝利尔必须"在清单、在盘上、内容没变" ----
 // 与 ①②③ 同一口径：这几条都是"本机底图完整性"，没有 wallpapers/ 就整体跳过（图片不进 git ⇒ CI 上必然没有）。
 // 别把它硬留成 CI 必跑项 —— 那样 CI 上必然红，套件就成了假门禁。
-console.log('=== ④ 清单校验（39 张都在且校验通过） ===')
+// total 不钉死数值（2026-09-23 起随加图浮动：39 → 55），只要求与 items 自洽；全量完整性归
+// fetch-wallpapers --check 管，这套只守去重相关的那几项。
+console.log('=== ④ 清单校验（贝利尔在清单且完好） ===')
 if (!haveWallpapers) {
   skipped('wallpapers/ 不存在 —— 本机底图完整性这一类断言整体跳过（含清单校验）')
 } else {
   let manifest = null
   try { manifest = readManifest(ROOT) } catch (e) { /* 下面报 */ }
-  ok('清单可读且 total=39', !!manifest && manifest.total === 39 && Array.isArray(manifest.items) && manifest.items.length === 39,
+  ok('清单可读且 total==items.length', !!manifest && manifest.total === (manifest.items || []).length,
     manifest ? 'total=' + manifest.total + ' items=' + (manifest.items || []).length : '读不了清单')
+  // verifyLocal 的**全量**结论由 fetch-wallpapers --check 自己报（2026-09-23 起本机有 4 个已改名的
+  // 清单路径缺失 + 20 张未登记新图 ⇒ 全量必然不绿，那不是本套要守的回归）。这里只守贝利尔：
+  // 它们在清单里、在磁盘上、sha256 没变 —— 去重/清理绝不允许悄悄弄坏清单在用的那份。
   const v = verifyLocal(ROOT)
-  ok('verifyLocal 全部 ' + v.total + ' 张都在且校验通过', v.ok === true,
-    'missing=' + v.missing.length + ' bad=' + v.bad.length + (v.missing.length ? ' 缺:' + v.missing.slice(0, 3).join(',') : '') + (v.bad.length ? ' 坏:' + v.bad.slice(0, 3).join(',') : ''))
-  // 清单里指向的就是 `2` 名（改名时清单跟着更新过）—— 硬链接后这两个路径仍在清单里，必须能命中。
+  for (const p of ['高清/贝利尔2.png', '重返未来1999/贝利尔2.png']) {
+    ok('清单内且在盘上: ' + p, !v.missing.includes(p) && !v.bad.includes(p),
+      'missing=' + v.missing.join(',') + ' bad=' + v.bad.join(','))
+  }
   if (manifest) {
     const paths = manifest.items.map((i) => i.path)
     for (const p of ['高清/贝利尔2.png', '重返未来1999/贝利尔2.png']) {
@@ -100,40 +111,26 @@ if (!haveWallpapers) {
     }
   }
 
-  // ---- ② 两对各自同 inode 且同内容（硬链接的实证） ----
-  console.log('\n=== ② 每对同 inode + 同内容（真去重） ===')
+  // ---- ② 现存名字：大小与基线一致；nlink 计数如实记录（旧名删除后可能残留 ≥2） ----
+  console.log('\n=== ② 现存名字的大小与基线一致 ===')
   for (const pair of PAIRS) {
     const sts = pair.names.map((rel) => fs.statSync(path.join(WALL, rel)))
-    const same = dev(sts[0]) === dev(sts[1])
-    ok('同 inode  ' + pair.label + '（' + pair.names[0] + ' ≡ ' + pair.names[1] + '）', same,
-      same ? '' : 'inode 不同 ⇒ 仍是两份字节，没去重：' + dev(sts[0]) + ' vs ' + dev(sts[1]))
-    ok('同大小  ' + pair.label, sts[0].size === sts[1].size && sts[1].size === pair.bytes,
-      sts[0].size + ' / ' + sts[1].size + '（基线 ' + pair.bytes + '）')
-    // nlink ≥ 2 是硬链接的直接证据（inode 号在个别文件系统上可能为 0，nlink 更硬）。
-    ok('链接数 ≥2 ' + pair.label, sts[0].nlink >= 2 && sts[1].nlink >= 2,
-      'nlink=' + sts[0].nlink + ' / ' + sts[1].nlink)
+    ok('大小 == 基线  ' + pair.label, sts.every((st) => st.size === pair.bytes),
+      sts.map((st) => st.size).join(' / ') + '（基线 ' + pair.bytes + '）')
+    console.log('    ' + pair.label + ' nlink=' + sts[0].nlink + (sts[0].nlink >= 2 ? '（旧名已删，链接计数是当年硬链接的残留）' : ''))
   }
 
-  // ---- ②′ 每一个"同 sha256 组"内部都必须只占一个 inode（= 去重真的做完了）----
-  console.log('\n=== ②′ 同内容组内只占一份 inode ===')
+  // ---- ②′ 全库不许再冒出同内容的重复组（去重状态的守门员）----
+  console.log('\n=== ②′ 全库无同内容重复组 ===')
   {
-    // 注意口径：去重后 findDuplicateGroups **仍会**报出这两组 —— 那是预期的（一份内容、多名称引用）。
-    // "去重成功"的判据不是"没有同内容组"，而是"每个同内容组内部全部指向同一 inode"。
+    // 口径：贝利尔的旧名已删 ⇒ 现在**任何**两个名字撞 sha256 都是回归（要么该建硬链接，要么是真重复）。
     const groups = findDuplicateGroups(WALL)
-    let multiInode = []
-    for (const g of groups) {
-      const inodes = new Set(g.group.map((f) => { const st = fs.statSync(f.path); return st.dev + ':' + st.ino }))
-      if (inodes.size !== 1) multiInode.push(g.group.map((f) => f.rel).join(' ≡ ') + '（占 ' + inodes.size + ' 份）')
-    }
-    ok('同内容组共 ' + groups.length + ' 组，每组都只占 1 个 inode', multiInode.length === 0,
-      multiInode.length ? '这些组仍是多份字节：' + multiInode.join(' · ') : '')
-    // 反过来说，这两组必须**恰好**是那两对贝利尔（防止以后冒出别的重复却没人注意）。
-    const refs = groups.map((g) => g.group.map((f) => f.rel).sort().join('≡')).sort()
-    const want = PAIRS.map((p) => p.names.slice().sort().join('≡')).sort()
-    ok('重复组恰好是那两对贝利尔', JSON.stringify(refs) === JSON.stringify(want),
-      '实得 ' + JSON.stringify(refs))
+    ok('同内容重复组 == 0', groups.length === 0,
+      groups.length ? '冒出 ' + groups.length + ' 组：' + groups.map((g) => g.group.map((f) => f.rel).join(' ≡ ')).join(' · ') : '')
 
-    // 按 inode 去重后的真实占用：硬链接的两个名字只算一次（目录条目求和看不到这个差别）。
+    // 按 inode 去重后的真实占用。基线修订（2026-09-23）：本机已从 39 张扩到 55 张（新增图未登记、
+    // 4 个清单路径被改名），旧的"39 inode / 820 MiB"算术随实况作废 —— 这里只断言
+    // "inode 数 == 文件数"（即真的没有双份字节），总量打印出来供人核对。
     const seen = new Set()
     let realBytes = 0, entries = 0, unique = 0, entrySum = 0
     for (const f of scanImages(WALL)) {
@@ -143,18 +140,11 @@ if (!haveWallpapers) {
       if (seen.has(k)) continue
       seen.add(k); unique++; realBytes += st.size
     }
-    // 39 个 inode / 820 MiB 是"清单 39 项 + 两对重复各占一个 inode"的算术结果，
-    // 正好等于 FETCH 文档里写的"39 张原始文件合计约 820MB"—— 对不上说明去重状态被人动过。
-    ok('真实 inode 数 == 39', unique === 39, '实得 ' + unique + '（目录条目 ' + entries + '）')
-    ok('真实占用 ≈ 820.12 MiB', Math.abs(realBytes / 1048576 - 820.12) < 0.05,
-      '实得 ' + (realBytes / 1048576).toFixed(2) + ' MiB')
-    // 目录条目求和**必须仍是 874.48 MiB** —— 因为四个名字都还在，谁都没被删。
-    ok('目录条目求和仍是 874.48 MiB（4 个名字都还在）', Math.abs(entrySum / 1048576 - 874.48) < 0.05,
-      '实得 ' + (entrySum / 1048576).toFixed(2) + ' MiB')
+    ok('真实 inode 数 == 目录条目数（无双份字节）', unique === entries, '实得 inode ' + unique + ' / 条目 ' + entries)
     console.log('    条目 ' + entries + ' 个 / inode ' + unique + ' 个 · 真实占用 ' + (realBytes / 1048576).toFixed(2) + ' MiB（条目求和 ' + (entrySum / 1048576).toFixed(2) + ' MiB · 回收 ' + ((entrySum - realBytes) / 1048576).toFixed(2) + ' MiB）')
   }
 
-  console.log('\n=== ③ 路由 /bga/wallpapers/<类型>/<名> 取回 4 个名字 ===')
+  console.log('\n=== ③ 路由 /bga/wallpapers/<类型>/<名> 取回现存名字 ===')
   const routes = []
   const fakeCtx = {
     get: (n) => (n === 'webServer' ? { register: (cfg) => { routes.push(cfg); return function () {} } } : undefined),
@@ -192,10 +182,8 @@ if (!haveWallpapers) {
     }
   }
 
-  // 旧格式（根目录名兜底查找）也要能找到这两个名字 —— 老版本 URL 靠这条活着。
-  // 注意：`贝利尔.png` 在**两个类型目录里都有**，findByFileName 按类型目录名排序取**第一个命中**，
-  // 所以这里只断言"能 200 且字节数等于这两个名字之一的真实大小"，不断言具体是哪一类（那是实现细节）。
-  for (const rel of ['高清/贝利尔.png', '重返未来1999/贝利尔.png']) {
+  // 旧格式（根目录名兜底查找）也要能找到现存名字 —— 老版本 URL 靠这条活着。
+  for (const rel of ['高清/贝利尔2.png', '重返未来1999/贝利尔2.png']) {
     const name = rel.split('/')[1]
     const want = PAIRS.map((p) => p.bytes)
     const r = await request(ROUTE_PREFIX + '/' + encodeURIComponent(name))

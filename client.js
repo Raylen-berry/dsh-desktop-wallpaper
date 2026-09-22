@@ -1,28 +1,13 @@
 // ============================================================================
-// dsh-bg-atelier · Client half (v1.3.0 packaged)
-// 随 DSH 启动作为标准 DSH 插件加载 (dsh plugin 安装进 profile)。
-//   v1.0 基础: cover 底图 + 九宫格焦点 + 绕焦点缩放; 琉璃卡面 + 框缘特效
-//   锦框/流光环/墨韵/流萤; 调色板 10 套; 设置持久化到 host 侧 settings.json。
-//   v1.1 新增 (底图按"类型"两级浏览):
-//   - 一级页 = 底图类型列表 (放图目录下每个子文件夹一个类型, 如 线稿风 /
-//     重返未来1999); 二级页 = 该类型的图库 (缩略图即点即换, 每张带 №编号角标)。
-//   - 类型内按是否高清细分: 全部 / 高清 / 普通 筛选条 (文件名尾部带
-//     高清/_高清/·高清/4K/HD 等标记的自动识别), 显示名不受影响。
-//   - 换图宝珠 = 跨"所有类型的所有图"随机, 轮次式 2/3 不重复洗牌 (详见
-//     cycleWallpaper 注释); 每张底图有内部编号/稳定 id (不改显示名)。
-//   - 底图清单走 /bga/wallpapers.json HTTP 路由, 样式自包含注入。
-//   v1.2 性能/体验:
-//   - 图库网格 React.memo 隔离 + 缩略图浏览器强缓存 (host 返回 max-age),
-//     打开/翻页/拖滑杆不再整页重渲染、不再重拉原图; 图库只请求缩略图,
-//     原图在真正点击选中后才作为背景加载。
-//   - 底图区域加载动画: 缩略图/当前底图未就绪时显示转圈, 清单加载有整体转圈。
-//   - 对话页宽度: 上限放宽到 3840px + 常用宽度快捷按钮; 独立滑杆拖动时
-//     只做即时预览, 松手/失焦才保存, 不再逐格触发全页重渲染。
-//   v1.3 职责收敛 (会话外观类开关集中到一处):
-//   - 「对话页固定宽度」整节 (UI + 状态 + 那三个 --dsh-chat-* 变量的钉法 +
-//     MutationObserver) 移交 dsh-cache-control 的设置页「会话策略 · 对话页」;
-//     本插件只留底图 / 配色 / 卡面 / 特效。磁盘旧值由那边启动时一次性搬走,
-//     用户不需要重设。
+// dsh-bg-atelier · Client half (packaged, boot-loaded; 版本以 package.json 为准)
+// 职责: 底图绘制 + 主题 token 染色 + 琉璃卡面与 dock 特效 + WE 动效层 + 设置页。
+//   · 底图按"类型"两级浏览: 一级 = 放图目录下每个子文件夹一个类型, 二级 = 该类型图库
+//     (缩略图即点即换, №编号角标, 全部/高清/普通筛选)。
+//   · 换图宝珠 = 跨全部类型随机, 轮次式 2/3 不重复洗牌 (见 cycleWallpaper 注释)。
+//   · 粒子数量随画布宽度按固定间距缩放 (countFor/DENSITY); 特效与底图解耦 (无底图也照画)。
+//   · 清单与设置走 /bga/* HTTP 路由, 样式自包含注入。
+// 历史流水账的唯一真源在 README「更新记录」；此处只留**解释当前行为**的注释。
+// 已移交 dsh-cache-control (v1.3.0): 「对话页固定宽度」整节 —— 本插件不再写任何 --dsh-chat-* 变量。
 // ============================================================================
 
 window.__ModuleLoader__.load({
@@ -79,9 +64,7 @@ var PRESETS = [
   { id: 'mono',      name: '墨黑',   accent: '#9aa0a8', deep: '#141518' },
 ]
 
-// 特效选项: 流萤 / 气泡 / 落樱 / 雨丝 + 关闭。
-// v1.5.2 定稿（用户从 8 种里挑的这 4 个）：删掉 **光带扫过 / 星轨环绕 / 浮尘光斑 / 墨韵涟漪** ——
-// 盘上存过这四个 id 的由 normalizeEffect 白名单自动归到「流萤」。
+// 特效选项: 流萤 / 气泡 / 落樱 / 雨丝 + 关闭 (v1.5.2 定稿, 从 8 种里挑的这 4 个)。
 // 全部只画在「输入框上方那条 dock 条」与卡面辉光上, 不碰消息气泡
 // (消息气泡的样式归 dsh-cache-control, 两边同时改会互相盖)。
 // **硬约束**：任何特效的粒子行程必须留在画布内 —— 飘出右缘会顶大
@@ -95,9 +78,8 @@ var EFFECTS = [
   { id: 'off',     name: '关闭', hint: '仅保留琉璃卡面, 不加框缘装饰' },
 ]
 
-// 已知特效 id 白名单: 盘上存的旧 id (锦框/流光环/墨韵、v1.4.1 撤掉的声波、v1.4.2 撤掉的极光、
-// v1.5.2 撤掉的光带扫过/星轨环绕/浮尘光斑/墨韵涟漪) 一律归一到「流萤」,
-// 自己选过「关闭」的保持不变 (STORE.state 默认值也已是 firefly)。
+// 已知特效 id 白名单: 盘上存过的历次撤掉的特效 id (锦框/流光环/墨韵/声波/极光/
+// 光带扫过/星轨环绕/浮尘光斑/墨韵涟漪) 一律归一到「流萤」, 自己选过「关闭」的保持不变。
 var EFFECT_IDS = { firefly: 1, bubble: 1, petal: 1, rain: 1, off: 1 }
 
 function normalizeEffect(v) {
@@ -123,16 +105,13 @@ var STORE = {
     glass: 0.8,           // 全局表面透光 0..1 (越大越透, 默认 80%)
     cardA: 0,             // 输入框不透明度 0..1 (默认 0 → ~95% 透明)
     cardBlur: 10,         // 输入框背景模糊 px 0..24 (白底图建议调低)
-    // v1.5.4 新增：卡面的深色接触阴影 + 环境阴影，**独立开关**。
-    // 起因（用户 2026-09-12）："关闭特效时会把对话框阴影也关了，这个还是新开一个开关控制阴影吧" ——
-    // 之前阴影是拼在 effectCss 里的，选「关闭」就一起没了，于是全透明卡面又分不清边界。
-    cardShadow: true,
+    cardShadow: true,     // 卡面深色接触阴影 + 环境阴影的独立开关 (v1.5.4: 关特效不再把阴影一起关掉)
     focus: '50% 50%',     // 底图焦点 (九宫格), 裁剪时保住画面主体
     zoom: 1,              // 底图缩放 1..2.2 (绕焦点放大)
     preset: 'sakura',
-    // 注: v1.2.0 之前的 chatWidth / chatWidthEnabled 两项已随「对话页」一节移交
-    // dsh-cache-control, 这里不再声明 —— 少了声明就等于不再读、也不再 PUT,
-    // 底图工坊的 settings.json 因此不会再写回这两个字段。
+    // v1.7.0 WE 动效底图: 只存 entry id, 真实 entry (封面/取色/相对路径) 每次启动从 host 的
+    // /bga/we/library.json 重新解析 —— 壁纸在 WE 侧取消订阅后这里自然解析不到, 静默跳过。
+    weId: null,
   },
   list: [],
   listDir: '',
@@ -173,7 +152,7 @@ var STORE = {
     }, 300)
   },
   load: function () {
-    fetch('/bga/settings.json', { cache: 'no-store' })
+    return fetch('/bga/settings.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : {} })
       .catch(function () { return {} })
       .then(function (saved) {
@@ -295,6 +274,25 @@ function rehydrateWallpaper() {
   if (hit) STORE.set({ wallpaper: wallpaperOf(hit) })
 }
 
+// 持久化的旧选择可能只存了 url/name (旧版根目录图, 甚至乱码文件名)。
+// 拉完最新清单后按 url / 文件名对回条目, 给当前底图补上类型/编号/高清等字段。
+function rehydrateWallpaper() {
+  var w = STORE.state.wallpaper
+  if (!w || !STORE.list.length) return
+  if (w.id && w.name) return
+  var dec = null
+  if (w.url) {
+    try { dec = decodeURIComponent(String(w.url).split('/').pop() || '') } catch (e) { /* ignore */ }
+  }
+  var hit = null
+  for (var i = 0; i < STORE.list.length; i++) {
+    var it = STORE.list[i]
+    if (w.url && it.url === w.url) { hit = it; break }
+    if (!hit && dec && it.file === dec) { hit = it }
+  }
+  if (hit) STORE.set({ wallpaper: wallpaperOf(hit) })
+}
+
 // ---- 随机换图: 跨全部类型的轮次式 2/3 不重复 ----
 // 规则: 每轮从"所有类型的全部图"里随机抽出 ceil(2/3 × 总数) 张排成随机序列
 // 逐张播放; 同一轮内绝不重复 (即至少播完约 2/3 之后才可能出现重复)。一轮放完
@@ -303,7 +301,6 @@ function rehydrateWallpaper() {
 // 重复判定基于 id, 不改变任何显示名。
 var cycleDeck = []
 var cycleSig = ''
-var cycleLast = null
 var cycleTail = []   // 最近播过的若干 id, 用于换轮衔接时避免刚播完又马上出现
 
 function buildCycleDeck(ids) {
@@ -356,7 +353,6 @@ function cycleWallpaper() {
     }
     if (!picked && items.length === 1) picked = items[0]  // 全池仅一张时退化
     if (!picked) return
-    cycleLast = picked.id
     cycleTail.push(picked.id)
     while (cycleTail.length > 12) cycleTail.shift()
     STORE.set({ wallpaper: wallpaperOf(picked) })
@@ -419,7 +415,7 @@ function buildTokens(s) {
 
 // -------------------------------------------------------------- 动态样式表 --
 // ① 琉璃卡面 (始终生效): 调色板染色半透明 + 背景模糊, 透明度由 cardA 控制
-// ② 框缘特效 (按选择): 流萤 / 关闭 (锦框/流光环/墨韵 已裁掉)
+// ② 框缘特效 (按选择): 流萤 / 气泡 / 落樱 / 雨丝 / 关闭
 
 function glassCardCss(s, accent, deep) {
   var a = 0.05 + s.cardA * 0.9                            // 0.05..0.95
@@ -438,16 +434,10 @@ function glassCardCss(s, accent, deep) {
 function effectCss(s, accent, deep) {
   // 卡面阴影 + 特效辉光，合成**一条** box-shadow（两条同选择器的规则会互相覆盖，
   // 不是叠加，所以必须在这里拼起来一次写完）。
-  //
-  // 卡面可辨识化（v1.5.2 用户要求"墨韵涟漪的对话框阴影削减一点加到留下的这四个里"）：
-  // 把墨韵那条 30px 深色辉光拆成一个接触阴影 + 一个环境阴影、并降低浓度 ——
-  //   接触阴影 0 1px 2px  --bga-card-edge  ：贴着卡面下沿一条硬边，最能把"框"定出来
-  //   环境阴影 0 10px 28px --bga-card-shade ：往下投的一片软影，让卡面像浮在底图上
-  // 两个变量由 dynamicCss 按当前配色写入（:root 上，与有没有底图无关）。
-  //
-  // **v1.5.4：这两道阴影改成独立开关注**（用户："关闭特效时会把对话框阴影也关了，
-  // 这个还是新开一个开关（不要太大）控制阴影吧"）—— 原来它拼在特效分支里，选「关闭」
-  // 就一起没了。现在 `cardShadow` 开关只管阴影、`effect` 只管辉光，两者独立拼装。
+  // 卡面两道阴影（v1.5.2）：接触阴影 0 1px 2px --bga-card-edge 贴边定框、环境阴影
+  // 0 10px 28px --bga-card-shade 让卡面像浮在底图上；两个变量由 dynamicCss 按配色写入。
+  // v1.5.4 起阴影归 cardShadow 开关、特效辉光归 effect 开关，两者独立拼装 ——
+  // 选「关闭」特效时阴影仍然在。
   var parts = []
   if (s.cardShadow !== false) {
     parts.push('0 1px 2px var(--bga-card-edge)')
@@ -470,48 +460,44 @@ function dynamicCss(s) {
     '  --bga-accent-soft:' + rgba(accent, 0.45) + ';\n' +
     '  --bga-accent-faint:' + rgba(accent, 0.16) + ';\n' +
     '  --bga-deep-glow:' + rgba(mix(deep, accent, 0.25), 0.5) + ';\n' +
-    // 卡面辨识用的两道阴影 (v1.5.2, 由 effectCss 用): 深色、低浓度。
-    // 浓度是照"墨韵涟漪原版 30px / alpha .5"削下来的 —— 环境阴影 .30、接触阴影 .34。
+    // 卡面辨识用的两道阴影 (由 effectCss 用): 深色、低浓度。
     '  --bga-card-shade:' + rgba(mix(deep, accent, 0.12), 0.3) + ';\n' +
     '  --bga-card-edge:' + rgba(deep, 0.34) + ';\n' +
     '}\n'
-  // v1.3.0: 这里原本在 chatWidthEnabled 时追加一条 `:root{--dsh-chat-user-width:… !important}`
-  // 作为"找不到会话根"时的兜底。该变量属「对话页固定宽度」功能, 已移交 dsh-cache-control
-  // —— 那边既钉会话根上的三个 --dsh-chat-* 变量, 也保留同一条 :root 兜底。本插件不再输出。
   if (s.wallpaper) {
-    var veil1 = rgba(deep, s.veil)
-    var veil2 = rgba(deep, s.veil * 0.55)
-    var img = 'url("' + s.wallpaper.url + '")'
-    var zoom = Math.max(1, Math.min(2.2, s.zoom || 1))
-    // 底图统一绘制在视口固定的 ::before 层: cover 裁剪 + 焦点定位 + 绕焦点缩放
-    css += 'body{background-color:' + s.deep + '}\n' +
-      'body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;' +
-      'background-image:linear-gradient(' + veil1 + ',' + veil2 + '),' + img + ';' +
-      'background-size:cover;background-repeat:no-repeat;background-position:' + s.focus + ';' +
-      'transform:scale(' + zoom.toFixed(2) + ');transform-origin:' + s.focus + '}\n'
+    // WE 动效层接管背景时不再画底图: 两者同在根层叠上下文, 底图(-1)会盖住动效层(-2),
+    // 所以这里跳过底图那两条规则（卡面染色照旧, 见下）。
+    if (!weActive()) {
+      var veil1 = rgba(deep, s.veil)
+      var veil2 = rgba(deep, s.veil * 0.55)
+      var img = 'url("' + s.wallpaper.url + '")'
+      var zoom = Math.max(1, Math.min(2.2, s.zoom || 1))
+      // 底图统一绘制在视口固定的 ::before 层: cover 裁剪 + 焦点定位 + 绕焦点缩放
+      css += 'body{background-color:' + s.deep + '}\n' +
+        'body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;' +
+        'background-image:linear-gradient(' + veil1 + ',' + veil2 + '),' + img + ';' +
+        'background-size:cover;background-repeat:no-repeat;background-position:' + s.focus + ';' +
+        'transform:scale(' + zoom.toFixed(2) + ');transform-origin:' + s.focus + '}\n'
+    }
     css += glassCardCss(s, accent, deep)
   }
-  // 2026-09-12 解耦（原因见 DockFx 里的同名注释）：卡面染色仍然只在"有底图"时才加，
-  // 但**特效不再要求有底图** —— 点「清除底图」不该让 8 种特效一起无声消失。
-  // v1.5.4：这里不再判 `s.effect !== 'off'` —— 卡面阴影有自己的开关，
-  // 选了「关闭」特效但阴影开着时，这条规则仍然要被写出来。
+  // 卡面染色只在"有底图"时才加，但**特效与阴影不要求有底图**（解耦, 原因见 DockFx 注释）；
+  // 阴影有自己的开关, 选「关闭」特效时这条规则仍要写出来。
   css += effectCss(s, accent, deep)
   return css
 }
 
 // -------------------------------------------------------------- 静态样式表 --
 
-// v1.4.1: 粒子改用"按序号确定性生成 CSS"。v1.4.0 之前是十几条手写规则, 一加密度就得
-// 手写几十行、还容易撞位置; prand 对同一个 i 永远给同一个值, 所以换配色/换壁纸重建整张
-// 静态样式表时萤点不会乱跳 (这里绝对不能用 Math.random)。
+// 粒子按序号**确定性**生成 CSS: prand 对同一个 i 永远给同一个值, 所以换配色/换壁纸
+// 重建整张静态样式表时萤点不会乱跳 (这里绝对不能用 Math.random)。
 function prand(i) { var x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
 
 /**
  * 把 n 个粒子的横向位置**均匀铺**在 [lo, hi]% 区间上：先分成 n 个等宽格子、每格放一个，
- * 格内再抖一点(≤±40% 格宽)。v1.5.3 加，起因是用户两次反馈"局部密度过大 / 某处挤成一团"：
- * `prand` 本身是均匀分布，但均匀分布**不等于看起来均匀** —— 样本一少（14、30 个）就必然
- * 出现"两点挨在一起、旁边一大片空着"的成团现象（泊松成团）。等分格子能保证任意一小段里
- * 的期望个数恒定，随机感靠抖动保留。
+ * 格内再抖一点(≤±40% 格宽)。`prand` 本身是均匀分布，但均匀分布**不等于看起来均匀** ——
+ * 样本一少（14、30 个）就必然出现"两点挨在一起、旁边一大片空着"的成团现象（泊松成团）。
+ * 等分格子能保证任意一小段里的期望个数恒定，随机感靠抖动保留。
  * 端点安全：i=n-1 时基准 = lo + slot×(n-0.5)，加抖动也不会越过 hi（实测见 tools/extract-real-css.mjs）。
  */
 function spread(i, n, lo, hi, seed) {
@@ -523,8 +509,6 @@ function spread(i, n, lo, hi, seed) {
 // 为什么必须这样：画布加了 overflow:clip 治「横向滚动条频闪」（见 staticCss() 里
 // .bga-dockfx-in 的注释），粒子一旦飘出画布边缘就会被硬切一刀；按位置选方向后，
 // 可见行程（含 reverse）全落在画布内，观感与从前一致而不再切边。
-// 上限核对（画布宽 = --dsh-composer-card-max-width，本机 932px）：
-//   左半区最右 0.5×932 + 260 + 5 = 731 < 932 ✓；右半区最左 466 − 260 = 206 > 0 ✓。
 var WANDERS_R = ['bga-wander1', 'bga-wander2']
 var WANDERS_L = ['bga-wander1L', 'bga-wander2L', 'bga-wander3']
 
@@ -564,12 +548,10 @@ function bubRules(n) {
   for (var i = 0; i < n; i++) {
     var left = (2 + prand(i + 401) * 95).toFixed(1)
     var bottom = 4 + Math.round(prand(i + 431) * 18)
-    var size = 7 + Math.round(prand(i + 461) * 15)          // 7~22px: v1.4.0 是 5~11px
+    var size = 7 + Math.round(prand(i + 461) * 15)          // 7~22px
     var dur = 5.2 + prand(i + 491) * 5                      // 升得更快, 一屏里同时在飞的多
-    // v1.5.3 修「刚切换过来时气泡滞留、跟停车待发一样」（用户实测反馈）：
-    // 原来是**正延迟** 0–7s ⇒ 没轮到自己的气泡停在底部原位、而且当时 .bga-bub 没写 opacity:0，
-    // 于是它们带着边框和渐变**实心停在卡面上等发车**。改成负延迟 = 一开始就已经在行程中途，
-    // 切换瞬间就是满屏在升的状态；配合下面 .bga-bub 补上 opacity:0 双保险。
+    // **负延迟**（v1.5.3）：切换瞬间气泡已在行程中途, 不会带着边框实心停在底部"等发车";
+    // 配合下面 .bga-bub 的 opacity:0 双保险。
     var delay = -(prand(i + 521) * dur).toFixed(1)
     out.push('.bga-bub.b' + (i + 1) + '{left:' + left + '%;bottom:' + bottom + 'px;width:' + size + 'px;height:' + size +
       'px;animation-duration:' + dur.toFixed(1) + 's;animation-delay:' + delay + 's}')
@@ -577,14 +559,9 @@ function bubRules(n) {
   return out
 }
 
-// ================= 画布宽度 → 粒子数量（v1.5.4：数量随屏宽，密度不随屏宽） =================
-// 用户 2026-09-12 反馈："如果你限定数量，在我小屏显示的时候，密度就会很大，
-// 你现在需要全改数量为适配屏宽的类型了。"
-// 做法：每个特效定义一个**间距**（多少 px 一颗），数量 = round(画布宽 / 间距)，再夹进上下限。
-// 间距按"本机画布 985px 下当时选定/复核过的数量"折算，于是大屏观感与之前完全一致，
-// 小屏按比例减少、不会挤成一团：
-//   流萤 985/18 ≈ 54.7px 一颗；星 985/14 ≈ 70.4；气泡 985/14 ≈ 70.4；
-//   落樱 985/14 ≈ 70.4；雨丝 985/44 ≈ 22.4。
+// ================= 画布宽度 → 粒子数量（数量随屏宽，密度不随屏宽） =================
+// 每个特效定义一个**间距**（多少 px 一颗），数量 = round(画布宽 / 间距)，再夹进上下限。
+// 间距按"本机画布 985px 下复核过的数量"折算：流萤 54.7px/颗、星与气泡与落樱 70.4、雨丝 22.4。
 // 上下限只防极端：小到 300px 画布也不至于只剩两三颗，大到 4K 也不至于上百颗压帧。
 var CANVAS_W = 985
 var DENSITY = {
@@ -602,11 +579,11 @@ function countFor(kind) {
 // 规则数组是**可重建**的：画布宽度一变就按新数量重算（数量同时决定 CSS 规则条数与 DockFx 的节点数）。
 var FLY_RULES = [], STAR_RULES = [], BUB_RULES = [], PETAL_RULES = [], RAIN_RULES = []
 function regenerateParticles() {
-  FLY_RULES = flyRules(countFor('fly'))       // v1.4.0: 10
-  STAR_RULES = starRules(countFor('star'))    // v1.4.0: 6
-  BUB_RULES = bubRules(countFor('bub'))       // v1.5.3 按用户要求 16 → 14（985px 画布下）
-  PETAL_RULES = petalRules(countFor('petal')) // v1.5.2: 9 → 14（985px 画布下）
-  RAIN_RULES = rainRules(countFor('rain'))    // v1.5.3: 30 → 44（985px 画布下）
+  FLY_RULES = flyRules(countFor('fly'))
+  STAR_RULES = starRules(countFor('star'))
+  BUB_RULES = bubRules(countFor('bub'))
+  PETAL_RULES = petalRules(countFor('petal'))
+  RAIN_RULES = rainRules(countFor('rain'))
 }
 regenerateParticles()
 
@@ -615,16 +592,11 @@ regenerateParticles()
 // 并留出"粒子自身尺寸 + 模糊外扩"的余量，保证行程不越出画布右缘
 // （越界就会顶大会话区的 scrollWidth ⇒ 横向滚动条频闪，见 tools/verify-dockfx-bounds.mjs）。
 
-/** 落樱：14 片小花瓣下落 + 横摆。left 4–92% + 横摆 ±26px + 8px 宽 ⇒ 最右约 891px。
- *  v1.5.2 用户要求："数量少了些许、体型有点大 ⇒ 缩小叶子、加点数量，注意不是密度"。
- *  做法：尺寸 7–12px → **5–8px**（叶子面积约降到 45%），数量 9 → **14**。
- *  两者相乘才是不显挤的原因 —— 单看数量是 +56%，但视觉上的"铺满感"反而约 -27%，
- *  所以是"多了叶子、不是变密了"。 */
+/** 落樱：小花瓣下落 + 横摆。left 走 spread() 等分格子防泊松成团；
+ *  尺寸 5–8px、985px 画布下 14 片 —— "多了叶子、不是变密了"（视觉铺满感反而约 -27%）。 */
 function petalRules(n) {
   var out = []
   for (var i = 0; i < n; i++) {
-    // v1.5.3: left 改走 spread() 等分格子 —— 用户反馈"还是会出现局部密度过大"，
-    // 那是纯 prand 抽样的泊松成团（两点挨在一起、旁边一大片空着），不是数量问题。
     var left = spread(i, n, 4, 92, i + 601).toFixed(1)
     var w = 5 + Math.round(prand(i + 611) * 3)
     var dur = 9 + Math.round(prand(i + 621) * 6)
@@ -636,12 +608,8 @@ function petalRules(n) {
   return out
 }
 
-/** 雨丝：44 条细斜雨丝。left 4–96% + 左移 22px ⇒ 最左约 15px、最右约 895px。
- *  v1.5.2 用户要"加密度"（12 → 30）；v1.5.3 再按反馈调三处：
- *    ① 条数 **30 → 44**（"数量还是少了"）；
- *    ② left 走 `spread()` 等分格子（"密度有些大" = 局部挤成一簇，不是整体太密）；
- *    ③ 落速 **1.5–2.6s → 0.85–1.5s**（"下落速度太慢了"），行程 110px 不变 ⇒ 视觉上快约 1.8 倍。
- *  粗细仍 1px、长度区间不动、跨度不动。 */
+/** 雨丝：细斜雨丝下落。left 走 spread() 等分格子（局部挤成一簇 = 泊松成团，不是数量问题）；
+ *  985px 画布下 44 条、落速 0.85–1.5s（行程 110px）。粗细 1px、跨度不动。 */
 function rainRules(n) {
   var out = []
   for (var i = 0; i < n; i++) {
@@ -674,44 +642,34 @@ function staticCss() {
   '@keyframes bga-rot{to{transform:rotate(360deg)}}',
   // ---- 流萤 dock ----
   '.bga-dockfx{height:0;position:relative;z-index:5;width:100%;max-width:var(--dsh-composer-card-max-width,100%);pointer-events:none}',
-  // 2026-09-12 修「对话区底部那条左右滑动的滑块一直频闪」：这块画布原来是
-  // overflow:visible，而粒子/流星都是 left% + translate 漂移 —— 飘到画布右缘之外的
-  // 萤点把外层 [data-conversation-scroll]（overflow:auto）的 scrollWidth 顶大。
-  // 真浏览器实量：scrollWidth 在 1139 ↔ 1209 之间反复变，横向滚动条高度 0 ↔ 8px
-  // 反复出现 ⇒ 会话区底部那条横向滚动条滑块一直在闪。
-  // 改 overflow:clip：不生成滚动容器、不顶大祖先 scrollWidth，画布本身 height:0
-  // 也不影响纵向布局。配合 flyRules 的「按位置选漂移方向」，粒子行程全在画布内，
-  // 观感与从前一致（气泡特效那条 .bga-bubsurf 的 left/right:-2% 也一并被夹住）。
+  // 画布 overflow:clip 治「横向滚动条频闪」：粒子/流星都是 left% + translate 漂移,
+  // overflow:visible 时飘出右缘会把外层 [data-conversation-scroll]（overflow:auto）的
+  // scrollWidth 顶大 ⇒ 会话区底部横滚条反复出现。clip 不生成滚动容器、不顶祖先;
+  // 配合 flyRules 的「按位置选漂移方向」, 粒子行程全在画布内, clip 只当兜底。
   '.bga-dockfx-in{position:absolute;left:0;right:0;bottom:4px;height:90px;overflow:clip}',
   '.bga-fly{position:absolute;width:5px;height:5px;border-radius:50%;corner-shape:round;background:var(--bga-accent);box-shadow:0 0 12px 3px var(--bga-accent-soft);opacity:0}',
   ...FLY_RULES,
   '.bga-star{position:absolute;width:3px;height:3px;border-radius:50%;corner-shape:round;background:var(--bga-accent);box-shadow:0 0 7px 1.5px var(--bga-accent-soft);opacity:0;animation:bga-twinkle 2.8s ease-in-out infinite}',
   ...STAR_RULES,
   '.bga-meteor{position:absolute;left:-8%;bottom:48px;width:70px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--bga-accent),transparent);opacity:0;animation:bga-meteor 9s linear infinite 4s}',
-  // m2 起点原为 right:-6%（起手就探出画布右缘 56px，同样会顶大 scrollWidth）；
-  // 画布改成 overflow:clip 后已不会出滚动条，但仍把起点收进画布内，免得流星从边缘"凭空冒头"。
+  // m2 起点收进画布内（原 right:-6% 起手就探出右缘）, 免得流星从边缘"凭空冒头"。
   '.bga-meteor.m2{left:auto;right:0;bottom:66px;width:94px;height:2.5px;animation:bga-meteor2 13s linear infinite 7.5s}',
   // ---- 特效: 气泡 (与流萤共用 .bga-dockfx 这块画布) ----
-  // v1.4.2 撤掉「极光」: 三团光雾同样靠 translateX 漂移出画布, 既有频闪嫌疑、
-  // 观感也和琉璃卡面的辉光重复; 用户 2026-09-12 要求删除。
-  // 气泡 (v1.4.1 加重): 个头 5~11px→7~22px、数量 8→16、边缘带高光+外辉, 底部再铺一层
-  // "水面"辉光带, 让整串气泡有出处而不是凭空冒出来。
+  // 气泡: 个头 7~22px、边缘带高光+外辉, 底部铺一层"水面"辉光带, 让整串气泡有出处。
   '@keyframes bga-rise{0%{transform:translateY(0) scale(.5);opacity:0}12%{opacity:.95}68%{opacity:.72}100%{transform:translateY(-92px) scale(1.35);opacity:0}}',
   '.bga-bub{position:absolute;border-radius:50%;corner-shape:round;border:2px solid var(--bga-accent-soft);background:radial-gradient(circle at 32% 26%,rgba(255,255,255,.95),var(--bga-accent-faint) 60%,var(--bga-accent-soft) 100%);box-shadow:0 0 10px var(--bga-accent-faint),inset 0 -2px 6px var(--bga-accent-faint);opacity:0;animation:bga-rise 7s ease-in infinite}',
   ...BUB_RULES,
   '@keyframes bga-bubsurf{0%,100%{opacity:.3;transform:scaleX(1)}50%{opacity:.62;transform:scaleX(1.05)}}',
   '.bga-bubsurf{position:absolute;left:-2%;right:-2%;bottom:0;height:22px;border-radius:50%;corner-shape:round;filter:blur(13px);background:var(--bga-accent-soft);opacity:.4;animation:bga-bubsurf 6.5s ease-in-out infinite}',
-  // ---- v1.5.2 定稿: 落樱 / 雨丝 (都在同一块 .bga-dockfx-in 画布上; 画布是 overflow:clip,
-  //      所以每条的行程都按"不碰到画布边缘"设计, clip 只当兜底)。
-  //      同批被砍掉的四条 (光带扫过 / 星轨环绕 / 浮尘光斑 / 墨韵涟漪) 的规则与关键帧已整体删除;
-  //      它们的"卡面阴影"思路被削浓度后并进了 effectCss 的 card 前缀 (见那里的注释)。
+  // ---- 落樱 / 雨丝 (都在同一块 .bga-dockfx-in 画布上; 画布 overflow:clip,
+  //      每条的行程都按"不碰到画布边缘"设计, clip 只当兜底)。
   // 落樱: 花瓣用 border-radius:50% 0 50% 0 出叶形 (corner-shape:round 保住这个形状,
   //    否则会被主题的全局 corner-shape 改成方圆角)。落到底部前淡出, 不会"拍"在卡面上。
   '@keyframes bga-fall{0%{transform:translate(0,-10px) rotate(0);opacity:0}12%{opacity:.85}88%{opacity:.7}100%{transform:translate(var(--bga-dx,0px),104px) rotate(300deg);opacity:0}}',
   '.bga-ptl i{position:absolute;top:-12px;background:linear-gradient(150deg,var(--bga-accent),var(--bga-accent-soft));border-radius:50% 0 50% 0;corner-shape:round;opacity:0;animation:bga-fall var(--bga-dur,11s) linear infinite var(--bga-delay,0s)}',
   ...PETAL_RULES,
-  // 雨丝: 细斜雨丝下落 + 底部一层"被雨打湿"的水光。雨丝左移 22px, left 起点 4% 起
-  //    ⇒ 最左 ~15px、最右 ~895px, 两端都不触画布边。条数见 RAIN_RULES (v1.5.2: 30 条)。
+  // 雨丝: 细斜雨丝下落 + 底部一层"被雨打湿"的水光。雨丝左移 22px, left 起点 4% 起,
+  //    两端都不触画布边。条数见 RAIN_RULES。
   '@keyframes bga-drop{0%{transform:translate(0,-16px) rotate(12deg);opacity:0}10%{opacity:.75}100%{transform:translate(-22px,110px) rotate(12deg);opacity:0}}',
   '@keyframes bga-wet{0%,100%{opacity:.09}50%{opacity:.2}}',
   '.bga-rn i{position:absolute;top:-14px;width:1px;background:linear-gradient(180deg,transparent,var(--bga-accent));opacity:0;animation:bga-drop var(--bga-dur,2s) linear infinite var(--bga-delay,0s)}',
@@ -719,10 +677,8 @@ function staticCss() {
   '.bga-wet{position:absolute;left:8%;right:8%;bottom:0;height:10px;border-radius:50%;corner-shape:round;background:var(--bga-accent);filter:blur(9px);opacity:.14;animation:bga-wet 3.4s ease-in-out infinite}',
   // ---- 侧边栏宝珠 ----
   // --bga-orb-dy / --bga-orb-dx 由 dsh-browser-live 叠列模式写入（纯平移让位，不影响布局盒）
-  // 2026-09-11 修：DSH 主题有一条全局规则 `*,:before,:after{corner-shape:var(--dsw-corner-shape)}`，
-  // 而 `--dsw-corner-shape` 默认 `superellipse(1.5)`（方圆角）——凡是 `border-radius:50%` 的"真圆"
-  // 都会被画成圆角方块（宝珠正是这样从拟球变成圆角矩形）。宿主自己的圆形控件都写了
-  // `corner-shape:round` 豁免，插件里的真圆也必须照做；旧内核不认这条属性，会自动忽略。
+  // DSH 主题有全局 `*,:before,:after{corner-shape:var(--dsw-corner-shape)}`（默认方圆角），
+  // 凡 border-radius:50% 的"真圆"都会被画成圆角方块 —— 圆形控件必须写 corner-shape:round 豁免。
   '.bga-orb{border:none;background:none;padding:4px;cursor:pointer;display:flex;align-items:center;justify-content:center}',
   '.bga-orb-core{display:block;width:18px;height:18px;border-radius:50%;corner-shape:round;border:1px solid rgba(255,255,255,.4);box-shadow:0 0 9px var(--bga-accent-soft,rgba(0,0,0,.2));transition:transform .18s;transform:translate(var(--bga-orb-dx,0px),var(--bga-orb-dy,0px))}',
   '.bga-orb:hover .bga-orb-core{transform:translate(var(--bga-orb-dx,0px),var(--bga-orb-dy,0px)) scale(1.18)}',
@@ -786,8 +742,7 @@ function staticCss() {
   '.bga-thumbwrap{position:relative;display:block}',
   '.bga-no{position:absolute;left:4px;top:4px;font-size:9px;line-height:1.2;padding:2px 5px;border-radius:5px;background:rgba(0,0,0,.6);color:#fff;pointer-events:none}',
   '.bga-name em{font-style:normal;font-size:10px;color:var(--dsw-alias-label-secondary);border:1px solid var(--dsw-alias-border-l2);border-radius:5px;padding:0 4px;flex:none}',
-  // ---- v1.2: 加载动画 (转圈) + 类型卡缩略图盒子 ----
-  '.bga-loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 0;color:var(--dsw-alias-label-secondary);font-size:12px}',
+  // ---- v1.2: 加载动画 (转圈) + 类型卡缩略图盒子 ----  '.bga-loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 0;color:var(--dsw-alias-label-secondary);font-size:12px}',
   '.bga-spin{width:15px;height:15px;border-radius:50%;corner-shape:round;border:2px solid rgba(160,170,190,.3);border-top-color:var(--bga-accent,#7aa7e8);animation:bga-rot .7s linear infinite}',
   '.bga-thumbwrap::before,.bga-curbox::before,.bga-minibox::before{content:"";position:absolute;left:50%;top:50%;z-index:0;border-radius:50%;corner-shape:round;border:2px solid rgba(160,170,190,.28);border-top-color:var(--bga-accent,#7aa7e8);animation:bga-rot .7s linear infinite}',
   '.bga-thumbwrap::before{width:20px;height:20px;margin:-10px 0 0 -10px}',
@@ -796,25 +751,22 @@ function staticCss() {
   '.bga-thumbwrap img{position:relative;z-index:1}',
   '.bga-minibox{position:relative;display:block;width:57px;height:40px;border-radius:6px;overflow:hidden;background:var(--dsw-alias-bg-layer-2)}',
   '.bga-minibox img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}',
-  // ---- v1.4: 「文件目录与类型说明」抽屉 (点开才显示说明正文) ----
+  // ---- 「文件目录与类型说明」抽屉 (点开才显示说明正文) ----
   '.bga-foldbtn{display:inline-flex;align-items:center;gap:4px;border:1px dashed var(--dsw-alias-border-l2,rgba(127,127,127,.35));background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;padding:3px 10px;border-radius:8px;cursor:pointer}',
   '.bga-foldbtn:hover{color:var(--dsw-alias-label-primary);border-color:var(--bga-accent,var(--dsw-alias-brand-primary))}',
   '.bga-foldbody{margin-top:8px;border-left:2px solid var(--bga-accent,var(--dsw-alias-brand-primary));padding-left:10px;display:flex;flex-direction:column;gap:6px}',
-  // v1.5.4: 卡面阴影的独立小开关（用户："不要太大"）—— 一行小字 + 原生勾选框
+  // 卡面阴影的独立小开关：一行小字 + 原生勾选框
   '.bga-tiny{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);cursor:pointer;user-select:none}',
   '.bga-tiny:hover{color:var(--dsw-alias-label-primary)}',
   '.bga-tiny input{width:13px;height:13px;margin:0;accent-color:var(--bga-accent,var(--dsw-alias-brand-primary));cursor:pointer}',
   ].join('\n')
 }
 
-// ---------------------------------------------- 画布实宽 → 重建样式表 (v1.5.4) --
+// ---------------------------------------------- 画布实宽 → 重建样式表 --
 // **必须在模块作用域**：DockFx（模块级组件）每次渲染后要调 syncCanvasWidth，
-// apply() 里的 resize 监听也要调它。
-// 踩过的坑（v1.5.4 第一版就是这么炸的，务必别再挪回 apply 里）：把 syncCanvasWidth
-// 定义在 apply() 内部、而 DockFx 在模块作用域调用它 ⇒ 组件一挂载就 ReferenceError，
-// 整块 dock 被 React 卸掉，表现就是用户看到的"对话框特效全无"。
-// 当时的离线 harness 没抓到，因为它的 React stub 里 useEffect 是空函数、根本不执行回调；
-// 现在 harness 会真跑 useEffect 并直接渲染 DockFx，这类错会当场炸出来。
+// apply() 里的 resize 监听也要调它。踩过的坑：把 syncCanvasWidth 定义在 apply()
+// 内部、而 DockFx 在模块作用域调用 ⇒ 组件一挂载就 ReferenceError, 整块 dock 被 React
+// 卸掉（表现为"对话框特效全无"）。离线 harness 现在会真跑 useEffect 并渲染 DockFx, 这类错当场炸。
 var disposeStatic = null
 function rebuildStatic() {
   if (disposeStatic) disposeStatic()
@@ -845,12 +797,7 @@ function syncCanvasWidth() {
 // 只负责建节点, 动画全在 staticCss() 里 (纯 CSS, 不跑 JS 定时器)。
 function DockFx() {
   var s = useBga()
-  // 2026-09-12 解耦：**特效不再要求"有底图"**。
-  // 原来这里是 `if (!s.wallpaper || s.effect === 'off') return null`，于是设置页里点一下
-  // 「清除底图」（它只做 STORE.set({wallpaper:null})）就会让 8 种特效**一起无声消失** ——
-  // 用户 2026-09-12 实测反馈"底图工坊特效突然全没了"，查下来 settings.json 里
-  // wallpaper 变成了 null。特效画在输入框上方那条画布上、配色来自 :root 上的 --bga-accent
-  // （dynamicCss 无条件写入，与底图无关），所以这里只看特效自己的开关。
+  // 特效不要求"有底图"（解耦）：点「清除底图」只影响背景, 不该让特效一起无声消失。
   if (s.effect === 'off') return null
   var kids = []
   var i
@@ -874,7 +821,7 @@ function DockFx() {
   } else {
     return null
   }
-  // v1.5.4：每次渲染后量一次画布实宽（数量按它算）。syncCanvasWidth 自己带 24px 闸门，
+  // 每次渲染后量一次画布实宽（数量按它算）。syncCanvasWidth 自己带 24px 闸门，
   // 量到变化才重建样式表 + 通知重渲染，所以这里不会形成渲染循环。
   React.useEffect(function () { syncCanvasWidth() })
   return h('div', { className: 'bga-dockfx', 'aria-hidden': 'true' },
@@ -922,8 +869,7 @@ function Slider(label, value, min, max, onChange, unit) {
     shown)
 }
 
-/** v1.5.4：一行小字 + 原生勾选框的小开关（用户要求"不要太大"）。
- *  用在「卡面阴影」上 —— 它原来是拼在特效里的，选「关闭」会一起被关掉。 */
+/** 一行小字 + 原生勾选框的小开关（「卡面阴影」用, 它从特效里独立出来）。 */
 function TinySwitch(label, value, onChange) {
   return h('label', { className: 'bga-tiny' },
     h('input', { type: 'checkbox', checked: !!value, onChange: function (e) { onChange(e.target.checked) } }),
@@ -953,7 +899,7 @@ var ItemGrid = React.memo(function ItemGrid(props) {
         onClick: function () { STORE.set({ wallpaper: wallpaperOf(it) }) },
       },
         h('span', { className: 'bga-thumbwrap' },
-          // 图库主图用 640px 派生图 (v1.4.0): 网格卡约 150–260 CSS 宽, 2x 屏也不糊。
+          // 图库主图用 640px 派生图: 网格卡约 150–260 CSS 宽, 2x 屏也不糊。
           h('img', { className: 'bga-thumb', src: it.url + '?sz=preview', alt: it.base, loading: 'lazy', decoding: 'async' }),
           showNo ? h('span', { className: 'bga-no' }, '№' + it.no) : null),
         h('div', { className: 'bga-name' }, it.base,
@@ -964,12 +910,8 @@ var ItemGrid = React.memo(function ItemGrid(props) {
 })
 
 // ------------------------------------------------------ 对话页宽度：已迁出 --
-// v1.2.0 之前这里有一整块「对话页固定宽度」实现（findChatRoot / pinChatWidth /
-// applyChatWidth + 设置页 Section + 常用宽度快捷键 + MutationObserver）。
-// v1.3.0 起整体移交 dsh-cache-control（设置页「会话策略」→ 对话页）：
-// 那边钉的是同一组 --dsh-chat-content-width / --dsh-composer-card-max-width /
-// --dsh-chat-user-width 变量，磁盘上的旧值也由它首次启动时读
-// $DSH_HOME/dsh-bg-atelier/settings.json 一次性搬走。本插件不再碰这些变量。
+// 「对话页固定宽度」整节（UI + findChatRoot/pinChatWidth/MutationObserver）自 v1.3.0
+// 移交 dsh-cache-control（设置页「会话策略 · 对话页」），本插件不再碰 --dsh-chat-* 变量。
 
 function SettingsPage() {
   var s = useBga()
@@ -1002,7 +944,7 @@ function SettingsPage() {
   }
   React.useEffect(function () { refresh() }, [])   // 打开页面始终拉最新清单
 
-  // ---- v1.5.5：从 GitHub Release 取回底图（19 张约 333MB，不再放进 git，改为按需下载）----
+  // ---- 从 GitHub Release 取回底图（图片不进 git，见 README「底图分发」节）----
   // 与命令行 node tools/fetch-wallpapers.mjs 走 host 侧同一份实现（fetch-wallpapers.js），
   // 逐张校验字节数与 sha256；已存在且校验通过的会跳过，所以按钮可以反复点、断网续传。
   var progPair = React.useState(null)
@@ -1150,8 +1092,7 @@ function SettingsPage() {
     } else if (data.cats.length) {
       body = h('div', { className: 'bga-catgrid' }, catCards)
     } else {
-      // v1.5.5：空目录时说清"怎么把图弄回来" —— 19 张图约 333MB，**不再放进 git**（仓库只留清单），
-      // 新机器用下面的下载按钮（或命令行）从 Release 取回。
+      // 空目录时说清"怎么把图弄回来" —— 图片不进 git（仓库只留清单），新机器用下载按钮或命令行取回。
       body = h('div', { className: 'bga-none', style: { height: 'auto', flexDirection: 'column', gap: '8px', padding: '18px 0' } },
         h('span', null, '底图目录是空的 —— 点上面的「下载底图」从 Release 取回（约 333MB），或在插件目录执行 node tools/fetch-wallpapers.mjs'))
     }
@@ -1259,21 +1200,277 @@ function SettingsPage() {
       h('div', { className: 'bga-row', style: { marginBottom: '12px' } },
         Slider('卡面不透明', s.cardA, 0, 1, function (v) { STORE.set({ cardA: v }) }),
         Slider('卡面模糊', s.cardBlur, 0, 24, function (v) { STORE.set({ cardBlur: v }) }, 'px')),
-      // v1.5.4：阴影独立成一个小开关（原来它拼在特效里，选「关闭」就一起没了）
+      // 阴影独立成一个小开关（原来它拼在特效里，选「关闭」就一起没了）
       h('div', { style: { margin: '0 0 10px' } },
         TinySwitch('卡面阴影（全透明时也能看出输入框边界；与特效开关无关）',
           s.cardShadow !== false, function (v) { STORE.set({ cardShadow: v }) })),
       h('div', { className: 'bga-fxopts' }, fxOpts)),
-    // 这里原本的「对话页」(固定会话列宽) 一节已移到 dsh-cache-control 的设置页
-    // 「会话策略」→ 对话页 (v1.3.0)。移走的只是这一节 UI 与那三个 CSS 变量:
-    // 底图 / 配色 / 卡面 / 特效仍然全归本插件。
+    WeSection(),
     h('p', { className: 'bga-note' },
       '设置自动保存到 DSH 配置目录 (host 侧 settings.json), 重启后恢复上次选择。底图与特效由 bg-atelier 插件提供, 停用插件即完全还原, 不改动任何底层文件。对话页固定宽度改在「会话策略」插件里设置。'))
 }
 
-// ------------------------------------------------------------ 对话页宽度 ----
-// （原 findChatRoot / pinChatWidth / applyChatWidth 已随「对话页」一节移交
-//   dsh-cache-control；本插件不再写任何 --dsh-chat-* 宽度变量。）
+// ------------------------------------------------------------ WE 壁纸库 ----
+// Wallpaper Engine 接入。host 侧 /bga/we/* 路由提供库清单与媒体流;
+// 这里三块: WeSection(设置页列表) + WE_LAYER(全屏动效层, 挂 <html>) + WE 配色联动。
+// scene.pkg(PKGV00200, WE 私有加密容器)不做自研解码: scene 类 = preview.gif
+// 动态封面 + schemecolor 取色联动, 诚实降级。
+
+var WE_TYPE_LABEL = {
+  video: ['视频', '#3b82f6'],
+  web: ['网页', '#22c55e'],
+  scene: ['场景·取色联动', '#a855f7'],
+  application: ['程序', '#eab308'],
+  unknown: ['暂不支持', '#6b7280'],
+}
+
+function weMediaUrl(entry, rel) {
+  var segs = String(rel).replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/')
+  return '/bga/we/media/' + encodeURIComponent(entry.id) + '/' + segs
+}
+
+// scene 类的高清静态图（host 侧解 scene.pkg 合成，见 we/still.js）
+function weStillUrl(id) { return '/bga/we/still/' + encodeURIComponent(id) + '.webp' }
+
+// 先铺 192px 的 preview.gif（秒出），同时让 host 去解包出高清静态图，好了再换上去。
+// 解包一次约 5s，不值得让用户对着空白等，也不该阻塞请求。
+function weUpgradeToStill(id, img) {
+  function poll(n) {
+    if (n > 40 || !img.isConnected) return
+    fetch(weStillUrl(id), { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) {
+        if (r.ok) { img.src = weStillUrl(id); return }
+        setTimeout(function () { poll(n + 1) }, 1500)
+      })
+      .catch(function () { setTimeout(function () { poll(n + 1) }, 1500) })
+  }
+  fetch('/bga/we/still?id=' + encodeURIComponent(id), { method: 'POST' })
+    .then(function () { poll(0) })
+    .catch(function () { /* 接口不可用: 保持 gif */ })
+}
+
+// "0.1 0.6 1" -> [r,g,b] 浮点；非法返回 null (与 host scanner 同规则)
+function weParseSchemeColor(s) {
+  if (typeof s !== 'string') return null
+  var p = s.trim().split(/\s+/).map(Number)
+  return p.length >= 3 && p.every(function (n) { return isFinite(n) }) ? [p[0], p[1], p[2]] : null
+}
+
+// schemeColor -> 底图工坊的 accent/deep: 主色直接采用, 深色取同色相暗调。
+// 走 STORE.set 进现有持久化链路, 用户之后在「配色」区手动改即覆盖。
+function weApplySchemeColor(rgbFloat) {
+  var rgb = rgbFloat.map(function (x) { return Math.round(Math.max(0, Math.min(1, x)) * 255) })
+  var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255
+  var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2
+  var hDeg = 0, sat = 0
+  if (max !== min) {
+    var d = max - min
+    sat = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    hDeg = max === r ? (g - b) / d + (g < b ? 6 : 0)
+      : max === g ? (b - r) / d + 2
+      : (r - g) / d + 4
+    hDeg *= 60
+  }
+  var hx = function (hH, hS, hL) { // HSL(0-360,0-1,0-1) -> #rrggbb
+    var f = function (n) {
+      var k = (n + hH / 30) % 12
+      var a = hS * Math.min(hL, 1 - hL)
+      var v = hL - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))
+      return Math.round(255 * v).toString(16).padStart(2, '0')
+    }
+    return '#' + f(0) + f(8) + f(4)
+  }
+  STORE.set({
+    accent: hx(hDeg, Math.max(sat, 0.35), 0.62),
+    deep: hx(hDeg, Math.min(sat + 0.15, 0.9), 0.10),
+    preset: 'custom',
+  })
+}
+
+// ---- 全屏动效层 (video / web / scene 三态) ----
+// **必须 append 到 documentElement, 不能挂 body**: DSH 应用根节点带 transform/filter 类属性时
+// 自成 stacking context, body 子树里的负 z-index 会被钳在它自己的背景之后。挂 html 上则与底图的
+// body::before(-1) 同属根层叠上下文: 本层 -2 < -1, 观感 = 动效垫在暗纱与界面之下。
+//
+// 「应用了动效」必须连带两件事, 否则画面不动（实机踩过的两个坑）:
+//   ① 有底图时 dynamicCss 不再画底图 —— body::before(-1) 会盖死动效层(-2);
+//   ② 主题 token 把应用外框调成半透明 —— 没底图时 .frame 用 DSH 默认不透明底色,
+//      半透明的 --dsw-alias-bg-base 只在有底图时才下发。
+// 这两件事都发生在重建样式时, 所以用 WE_WATCHERS 把 apply() 里的 rebuildStyle/rebuildTokens 接进来。
+var WE_LAYER = { root: null, cleanup: null }
+var WE_WATCHERS = []
+
+function weActive() { return !!WE_LAYER.root }
+
+function weNotify() {
+  for (var i = 0; i < WE_WATCHERS.length; i++) {
+    try { WE_WATCHERS[i]() } catch (e) { /* noop */ }
+  }
+}
+
+function weDispose() {
+  if (!WE_LAYER.root) return
+  try { if (WE_LAYER.cleanup) WE_LAYER.cleanup() } catch (e) { /* noop */ }
+  WE_LAYER.cleanup = null
+  WE_LAYER.root.remove()
+  WE_LAYER.root = null
+  weNotify()
+}
+
+function weShow(entry) {
+  weDispose()
+  var root = document.createElement('div')
+  root.setAttribute('aria-hidden', 'true')
+  root.style.cssText = 'position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden'
+  WE_LAYER.root = root
+
+  if (entry.type === 'video' && /\.(mp4|webm)$/i.test(entry.file || '')) {
+    var v = document.createElement('video')
+    v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto'
+    v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover'
+    v.src = weMediaUrl(entry, entry.file)
+    root.appendChild(v)
+    var play = function () { v.play().catch(function () { /* 自动播放策略拦截时静默 */ }) }
+    v.addEventListener('canplay', play, { once: true })
+    var onVis = function () { if (document.hidden) v.pause(); else play() }
+    document.addEventListener('visibilitychange', onVis)
+    WE_LAYER.cleanup = function () {
+      document.removeEventListener('visibilitychange', onVis)
+      v.pause(); v.removeAttribute('src'); v.load()
+    }
+  } else if (entry.type === 'web' && /\.html?$/i.test(entry.file || '')) {
+    var f = document.createElement('iframe')
+    f.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none'
+    f.setAttribute('sandbox', 'allow-scripts')
+    f.src = weMediaUrl(entry, entry.file)
+    root.appendChild(f)
+    WE_LAYER.cleanup = function () { f.src = 'about:blank' }
+  } else if (entry.type === 'scene') {
+    // entry.file(scene.json) 封在 .pkg 里, 磁盘不存在 —— 只读 previewRel/schemeColor。
+    var rgb = weParseSchemeColor(entry.schemeColor)
+    if (rgb) weApplySchemeColor(rgb)
+    // 高清静态图优先（host 已解包好），否则先 gif 再后台升级
+    var still = entry.stillReady ? weStillUrl(entry.id) : null
+    var src = still || (entry.previewRel ? weMediaUrl(entry, entry.previewRel) : null)
+    if (src) {
+      var img = document.createElement('img')
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover'
+      img.src = src
+      root.appendChild(img)
+      if (!still) weUpgradeToStill(entry.id, img)
+    }
+  } else if (entry.previewRel) {
+    var img2 = document.createElement('img')
+    img2.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover'
+    img2.src = weMediaUrl(entry, entry.previewRel)
+    root.appendChild(img2)
+  }
+  document.documentElement.appendChild(root)
+  weNotify()
+}
+
+// 启动时把上次用的 WE 底图接回来 (STORE.state.weId 是唯一落盘的东西)。
+function weRestore() {
+  if (weActive()) return
+  var id = STORE.state.weId
+  if (!id) return
+  fetch('/bga/we/library.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : {} })
+    .then(function (d) {
+      var hit = (d.entries || []).filter(function (e) { return e.id === id })[0]
+      if (hit) weShow(hit)
+    })
+    .catch(function () { /* host 路由没就绪: 下次启动再说 */ })
+}
+
+// ---- 设置页区块: 库列表 + bridge 徽标 + 应用/清除 ----
+function WeSection() {
+  var stPair = React.useState({ loading: true, entries: null, weFound: false, bridge: null, error: '' })
+  var st = stPair[0], setSt = stPair[1]
+  var selPair = React.useState(STORE.state.weId || null)   // 当前已应用的 entry id
+  var selId = selPair[0], setSelId = selPair[1]
+
+  function loadStatus(force) {
+    fetch('/bga/we/status' + (force ? '?force=1' : ''), { cache: 'no-store' })
+      .then(function (r) { return r.json() })
+      .then(function (s) { setSt(function (p) { return Object.assign({}, p, { bridge: s.bridge }) }) })
+      .catch(function () { /* 徽标保持未知 */ })
+  }
+  function refresh() {
+    setSt(function (p) { return Object.assign({}, p, { loading: true, error: '' }) })
+    loadStatus(false)
+    fetch('/bga/we/library.json', { cache: 'no-store' })
+      .then(function (r) { return r.json() })
+      .then(function (d) {
+        setSt({ loading: false, entries: d.entries || [], weFound: !!d.weFound, bridge: st.bridge, error: '' })
+      })
+      .catch(function (e) { setSt(function (p) { return Object.assign({}, p, { loading: false, error: '扫描失败: ' + String(e) }) }) })
+  }
+  React.useEffect(function () { refresh() }, [])
+
+  function applyEntry(entry) {
+    weShow(entry)
+    setSelId(entry.id)
+    STORE.set({ weId: entry.id })     // 只记 id, 下次启动 weRestore() 自己解析回 entry
+  }
+  function clearWe() {
+    weDispose()
+    setSelId(null)
+    STORE.set({ weId: null })
+  }
+  function openInWe(id, btn) {
+    var old = btn.textContent
+    btn.textContent = '打开中…'
+    fetch('/bga/we/open-in-we?id=' + encodeURIComponent(id), { cache: 'no-store' })
+      .then(function (r) { btn.textContent = r.ok ? '已调起' : '失败(' + r.status + ')' })
+      .catch(function () { btn.textContent = '失败' })
+      .finally(function () { setTimeout(function () { btn.textContent = old }, 1500) })
+  }
+
+  var head = h('div', { className: 'bga-row', style: { alignItems: 'center', gap: '10px', marginBottom: '10px' } },
+    h('span', { className: 'bga-sub', style: { margin: 0 } },
+      st.loading ? '正在扫描 WE 库…'
+        : !st.weFound ? '未找到 Wallpaper Engine（已尝试注册表与常见路径）'
+        : '本地库共 ' + st.entries.length + ' 张'),
+    st.error ? h('span', { className: 'bga-field' }, st.error) : null,
+    h('span', {
+      className: 'bga-chip',
+      style: { background: st.bridge && st.bridge.available ? '#166534' : '#374151' },
+    }, st.bridge == null ? 'bridge: 检测中' : st.bridge.available ? 'WE 在线' : '离线模式'),
+    h('button', { type: 'button', className: 'bga-btn', onClick: function () { refresh() } }, '刷新'),
+    h('button', { type: 'button', className: 'bga-btn', onClick: function () { loadStatus(true) } }, '重探端口'),
+    selId ? h('button', { type: 'button', className: 'bga-btn', onClick: clearWe }, '清除动效') : null)
+
+  if (!st.entries || !st.entries.length) {
+    return Section('Wallpaper Engine 库', '只读本机已安装/订阅内容, 不分发任何 WE 素材。scene 类壁纸 = 动态封面 + 取色联动 (不渲染 .pkg)。', head)
+  }
+  var grid = h('div', { className: 'bga-grid' }, st.entries.map(function (entry) {
+    var tl = WE_TYPE_LABEL[entry.type] || WE_TYPE_LABEL.unknown
+    return h('div', {
+      key: entry.id, className: 'bga-card' + (entry.id === selId ? ' on' : ''),
+      style: { opacity: (WE_TYPE_LABEL[entry.type] ? 1 : 0.55), cursor: 'pointer' },
+      title: '点击作为动效底图',
+      onClick: function () { applyEntry(entry) },
+    },
+      entry.previewRel ? h('img', {
+        className: 'bga-thumb', style: { height: '86px' },
+        src: weMediaUrl(entry, entry.previewRel),
+        onError: function (e) { e.target.style.visibility = 'hidden' },
+      }) : h('div', { className: 'bga-emptymini' }, '无封面'),
+      h('span', {
+        style: { position: 'absolute', left: '6px', top: '6px', padding: '1px 7px', borderRadius: '6px', fontSize: '11px', color: '#fff', background: tl[1] },
+      }, tl[0]),
+      /^\d+$/.test(entry.id) ? h('button', {
+        type: 'button',
+        style: { position: 'absolute', right: '6px', top: '6px', padding: '1px 7px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.45)', color: '#fff', cursor: 'pointer' },
+        onClick: function (e) { e.stopPropagation(); openInWe(entry.id, e.currentTarget) },
+      }, '在 WE 打开') : null,
+      h('div', {
+        style: { padding: '5px 8px', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+      }, entry.title))
+  }))
+  return Section('Wallpaper Engine 库', '只读本机已安装/订阅内容, 不分发任何 WE 素材。点卡片即把该壁纸铺成 DSH 背景动效: video 循环播 / web 沙箱 iframe / scene = 动态封面 + 取色联动 (不渲染 .pkg)。', head, grid)
+}
 
 // -------------------------------------------------------------------- 入口 --
 
@@ -1319,7 +1516,8 @@ function apply(ctx) {
     function rebuildTokens() {
       if (theme === undefined) return
       if (disposeTokens) { disposeTokens(); disposeTokens = null }
-      var tokens = STORE.state.wallpaper ? buildTokens(STORE.state) : {}
+      // 没有底图时也要下发: WE 动效层同样需要外框半透明才看得见 (见 WE_LAYER 注释)
+      var tokens = (STORE.state.wallpaper || weActive()) ? buildTokens(STORE.state) : {}
       disposeTokens = theme.overrideTokens('bg-atelier', tokens)
     }
     ctx.effect(function () {
@@ -1331,9 +1529,12 @@ function apply(ctx) {
       return STORE.subscribe(function () { rebuildStyle(); rebuildTokens() })
     }, 'bga-watch')
 
-    // 「对话页固定宽度」连同它的 MutationObserver 已在 v1.3.0 整体移交给
-    // dsh-cache-control (设置页 · 会话策略 · 对话页)：那边钉的是同一组
-    // --dsh-chat-* 变量, 两边同时开会互相盖来盖去, 所以这里必须彻底删净。
+    // WE 动效层的出现/消失要重建动态样式与 token (为什么: 见 WE_LAYER 上方的注释)
+    ctx.effect(function () {
+      var fn = function () { rebuildStyle(); rebuildTokens() }
+      WE_WATCHERS.push(fn)
+      return function () { var i = WE_WATCHERS.indexOf(fn); if (i >= 0) WE_WATCHERS.splice(i, 1) }
+    }, 'bga-we-watch')
 
     if (slots !== undefined) {
       slots.inject('settings.section', function () {
@@ -1351,17 +1552,23 @@ function apply(ctx) {
           { name: 'sidebar.footer.action', id: 'bga-orb', order: 0, label: '底图工坊 · 换下一张底图' },
           function () { return h(Orb) })
       })
+      // WE 动效层不需要 slot: 它没有 UI, 直接 append 到 <html> (见上面 WE_LAYER 注释)。
     }
 
-    console.log('[dsh-bg-atelier] client up (v1.5.5)')
+    // 动效层的生命周期 = 插件生命周期。挂 ctx.effect 而不是 slot 空组件: 组件卸载必跑 cleanup,
+    // 那样"离开会话页"这类正常装卸就会顺手把底图拆掉, 层的存活不该由页面装卸决定。
+    ctx.effect(function () { return function () { weDispose() } }, 'bga-we-layer')
 
-    STORE.load()
+    console.log('[dsh-bg-atelier] client up')
+
+    // 恢复上次应用过的 WE 动效底图: 必须等 weId 从 settings.json 拉回来, 所以接在 load 后面。
+    STORE.load().then(function () { weRestore() })
   }
 
   exports.apply = apply
   exports.inject = inject
   // 测试缝（与 dsh-cache-control 同套路）：tools/ 下的离线脚本用它驱动
-  // "数量随画布宽度" 与 "卡面阴影独立开关" 这两件 v1.5.4 的新事。
+  // "数量随画布宽度"、"卡面阴影独立开关"与 DockFx 真渲染。
   exports.internals = {
     STORE: STORE,
     staticCss: staticCss,

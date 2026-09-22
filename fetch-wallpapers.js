@@ -27,6 +27,29 @@ export const DEFAULT_TIMEOUT_MS = 300000
 /** 单张下载的重试次数（不含首次尝试）。 */
 export const DEFAULT_RETRIES = 2
 
+// ---- 本机网络绕行（2026-09-23）----
+// 现象：objects.githubusercontent.com 对本机直连会 **TLS 层 ECONNRESET**（GitHub API 与
+// Release HTML 页都正常，只有资产 CDN 挂 ⇒ 排查时极易误判成"资产没传上去"）。
+// 解法：同目录放一个 .env.local（不进 git），一行 PROXY=http://127.0.0.1:<port> ——
+// 只给取图/发布的 fetch 走代理，不改系统、不影响 git 与其它任何程序。文件不在就一切照旧。
+let proxyUrl = null
+try {
+  const envFile = path.join(PLUGIN_DIR, '.env.local')
+  if (fs.existsSync(envFile)) {
+    const m = /^\s*PROXY\s*=\s*(\S+)/im.exec(fs.readFileSync(envFile, 'utf8'))
+    if (m) proxyUrl = m[1]
+  }
+} catch { /* 读不到就当没配 */ }
+export function getProxyUrl() { return proxyUrl }
+
+/** 给 fetch 用的选项：配了 PROXY 就注入 proxy 键（Node ≥24 认；更老的运行时只会因未知键被忽略或
+ *  连接失败 —— downloadOne 里有"不支持就删掉重连一次"的兜底，不会把下载搞挂）。 */
+export function fetchOpts(extra = {}) {
+  const o = { ...extra }
+  if (proxyUrl) o.proxy = proxyUrl
+  return o
+}
+
 export function readManifest(pluginDir = PLUGIN_DIR) {
   const f = path.join(pluginDir, MANIFEST_FILE)
   const m = JSON.parse(fs.readFileSync(f, 'utf8'))
@@ -106,7 +129,16 @@ async function downloadOne(url, item, tmp, opts) {
       if (typeof fetch !== 'function') throw new DownloadError('本机 Node 没有全局 fetch（需要 Node 18+）')
       let res
       try {
-        res = await fetch(url, { headers: { 'user-agent': 'dsh-bg-atelier' }, redirect: 'follow', signal: ac.signal })
+        const opts = fetchOpts({ headers: { 'user-agent': 'dsh-bg-atelier' }, redirect: 'follow', signal: ac.signal })
+        // 本机绕行：见文件头 getProxyUrl 的注释（objects CDN 直连被 TLS reset，API 不受影响）。
+        try {
+          res = await fetch(url, opts)
+        } catch (e) {
+          if (opts.proxy && /proxy/i.test(String((e && e.message) || e))) {
+            delete opts.proxy
+            res = await fetch(url, opts)
+          } else throw e
+        }
       } catch (e) {
         if (aborted(outer)) throw abortError()
         if (ac.signal.aborted) throw timeoutError(timeoutMs)

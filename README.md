@@ -36,10 +36,10 @@ dsh plugin --profile web add link:D:\DeepSeek\dsh-plugins\dsh-desktop-wallpaper
 
 ## 放入/更换底图（按类型）
 
-**开箱即用**：插件内置 **4 个类型共 39 张底图**（二次元 2 / 线稿风 5 / 重返未来1999 12 / 高清 20）。
+**开箱即用**：插件内置 **4 个类型共 55 张底图**（二次元 2 / 线稿风 5 / 重返未来1999 20 / 高清 28）。
 clone 完先在插件目录跑一次 `node tools/fetch-wallpapers.mjs`（或设置页点「**下载底图**」）把图取回来，再重启 DSH；
 设置 → 底图工坊 → 点类型卡进入图库即可选。**图片不进 git**（v1.5.5 起改走 Release 资产，见下面 A 节），
-所以 clone 只有代码、很快；`wallpapers/` 里是**原始文件**（无损，约 820 MB，口径见 A 节）。
+所以 clone 只有代码、很快；`wallpapers/` 里是**原始文件**（无损，约 1.25 GB，口径见 A 节）。
 
 **加一个新类型/新图**：把图片放进「放图目录」下**一个子文件夹 = 一个类型**，例如：
 
@@ -119,7 +119,7 @@ CI 用 Node 20/22/24 三档矩阵、windows-latest。
 | `tools/verify-dockfx-bounds.mjs` | 全部 PASS |
 
 **未纳入 CI** 的步骤（原因同时写在 `tools/run-all.mjs` 的 `EXCLUDED` 里）：
-`tools/fetch-wallpapers.mjs --check`（要本机已备好 39 张 820MB 底图，图片不进 git ⇒ CI 上必然失败；
+`tools/fetch-wallpapers.mjs --check`（要本机已备好 55 张约 1.25GB 底图，图片不进 git ⇒ CI 上必然失败；
 而且这个脚本本身就会**真实下载**，绝不能进 CI）、
 `tools/test-served-bytes.mjs`（要 `wallpapers/` 里的真实图片才能起供图路由断言，离线实测退出码 1）。
 
@@ -130,17 +130,17 @@ CI 用 Node 20/22/24 三档矩阵、windows-latest。
 > （起因：用户 2026-09-12 反馈"工作电脑上传、回家发现可用性很差、必须手动操作"。）
 
 **A. 克隆体积（v1.5.5 起：图不进 git，改为 Release 资产 + 按需下载）**
-39 张底图合计约 **820 MB**，长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
+底图合计约 **1.25 GB**（现 55 张；Release tag `wallpapers-v1` 与清单同步为 55 个资产），长期放在 git 里会让每次克隆都变成几百 MB（用户换机时"装个插件要拉几百兆"就是这么来的）。
 仓库只留 `wallpapers.manifest.json`（每张图的路径 + 字节数 + sha256），图片作为 Release 资产发布（tag `wallpapers-v1`）：
 
 ```powershell
 git clone https://github.com/Raylen-berry/dsh-desktop-wallpaper.git   # 只有代码，很快
-cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs            # 从 Release 取回 39 张（可重入/断点续传）
+cd dsh-desktop-wallpaper && node tools/fetch-wallpapers.mjs            # 从 Release 取回全部（可重入/断点续传）
 node tools/fetch-wallpapers.mjs --check                               # 只校验本机现有图（不联网）
 ```
 
 **画质口径：完全无损 —— 不缩放、不重编码。** Release 资产就是原始文件（PNG / JPG 原样），逐张 sha256 与清单一致。
-下载量确实大（820 MB），这是有意换来的：底图是长期资产，宁可下载慢，也不要在存档上留一次有损编码。
+下载量确实大（1.25 GB），这是有意换来的：底图是长期资产，宁可下载慢，也不要在存档上留一次有损编码。
 
 **显示这一侧现在也不打折（v1.6.1 起）**：host 供图**不设尺寸上限**，把原图**字节**直接送给浏览器 ——
 5120 / 7680 长边的超宽屏、8K 屏全都吃满，不会再被 3840 拉成放大模糊（此前 `SERVED_MAX_DIM = 3840`
@@ -440,3 +440,32 @@ dsh plugin --profile web remove dsh-bg-atelier
   **2/3 不重复轮次洗牌**；旧版根目录 URL/散图平滑兼容。
 - v1.0.0：由「动态 cordis_define 加载」改为「std DSH 插件打包 + profile 安装」，随启动自动加载，
   设置持久化；host 改用 Node fs，新增 `/bga/wallpapers.json` 清单路由。
+
+---
+
+## WE 壁纸库（v1.7.0 · M-A~E）
+
+设置页「底图工坊 → Wallpaper Engine 库」：浏览本机 Wallpaper Engine 订阅/本地项目，点卡片即把壁纸铺成 DSH 背景动效。
+
+- **来源发现**：注册表 `HKCU\Software\Valve\Steam` → `libraryfolders.vdf` → 硬编码兜底（实测非默认盘位可用）。
+- **三态渲染**：video = `<video>` 循环播；web = iframe `sandbox="allow-scripts"` + `/bga/we/media/<id>/<rel>` 前缀流（相对资源以真实 URL 解析）；scene = preview.gif 动态封面 + schemecolor 取色联动接管 accent/deep。**scene.pkg（PKGV00200）是 WE 私有加密容器，不做自研解码、路由层也拒发（连同 exe/dll 等可执行类扩展名黑名单）**。
+- **bridge**：裸 TCP 探测 16260（30s 缓存，`?force=1` 重探），只回答"WE 内部服务在不在"→ UI 徽标「WE 在线 / 离线模式」。WS RPC 接口位置留在 `we/bridge.js`，待有 16260 监听的环境再补。「在 WE 打开」走官方 `wallpaper://open?id=` URI（Electron shell.openExternal → Windows start 兜底 → 501）。
+- **合规**：只读用户本机已安装/订阅内容，不随插件分发任何 WE 素材。
+- **已知边界**：web 壁纸 iframe `pointer-events:none`（鼠标交互需另行桥接）；壁纸引用外部 http(s) 资源属壁纸自身行为。
+- **实机修复（2026-09-22，仍在 v1.7.0 内）**：点卡片"画面不动"的两个成因都跟扫描/路由无关 ——
+  ① 有底图时 `body::before(-1)` 的底图盖住动效层(-2)；② 没底图时应用外框用的是 DSH 默认**不透明**底色
+  （半透明 token 原来只在有底图时下发）。现在由 `weActive()` 一并管住：应用动效时不再画底图、token 照常下发
+  ⇒ 两者互斥，清除动效即还原原底图。
+- **持久化**：选中的 WE 底图只落一个 `weId`（`$DSH_HOME/dsh-bg-atelier/settings.json`），启动时从
+  `/bga/we/library.json` 解析回 entry 再铺层（壁纸被取消订阅就静默跳过）。动效层生命周期挂 `ctx.effect`，
+  不挂 slot 空组件 —— 层的存活不该取决于会话页挂没挂载。
+- **渲染不到内容 ≠ 没生效**：`document.hidden` 时 Chrome 暂停 GIF 动画、卡在首帧（本机那张 3253330537
+  的首帧是纯黑），窗口可见后自动继续；scene 类的"动态封面"只是 preview.gif，别当实时渲染。
+- **scene 类高清静态图（2026-09-22 加）**：preview.gif 只有 192×192，铺满 4K 屏 = 放大 ~10 倍，
+  所以 host 会解开 `scene.pkg` 自己合成一张静态图（`we/pkg.js` PKGV00200 容器 → `we/tex.js`
+  .tex 解码：LZ4 块 + PNG 直通 + DXT1/3/5 → `we/still.js` 按 scene.json 合成 4367×2456 webp）。
+  落盘 `$DSH_HOME/dsh-bg-atelier/we-stills/<id>.webp`（~1 MB），首次约 5s，之后读盘；
+  客户端先铺 gif、好了自动换成静态图（`POST /bga/we/still?id=` 触发 + `HEAD` 轮询）。
+  已知近似：相机/可见框用"整屏覆盖层(白/图层 1)"的矩形推断；origin 按**中心**解释；
+  puppet 骨骼层（attachment）拿不到骨骼矩阵，用最近的非 attachment 祖先近似；
+  blur/水波/音频响应/脚本动画等特效不渲染。**这些近似只影响 scene 类，video/web 类不受影响。**

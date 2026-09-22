@@ -25,9 +25,12 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { execFile, spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-// 底图取回（v1.5.5）：与 tools/fetch-wallpapers.mjs 共用同一份实现（见 fetch-wallpapers.js 顶部注释）
+// 底图取回：与 tools/fetch-wallpapers.mjs 共用同一份实现（见 fetch-wallpapers.js 顶部注释）
 import { readManifest, fetchWallpapers } from './fetch-wallpapers.js'
+// WE (Wallpaper Engine) 库接入: /bga/we/* 路由, 详见 we/ 目录与 README「WE 壁纸库」节。
+import { registerWeRoutes } from './we/routes.js'
 
 export const name = 'dsh-bg-atelier'
 export const inject = ['webServer']
@@ -43,10 +46,9 @@ const SETTINGS_PATH = '/bga/settings.json'
 // 读取原始文件的最大字节上限 (为容纳超大高清底图)。
 const MAX_BYTES = 128 * 1024 * 1024
 // 输出分辨率目标 (长边):
-//   SERVED_MAX_DIM    0 = 真正使用时的底图 —— **不设上限, 原图原样送**。
-//                        (2026-09-13 由 3840 放开: 5120/7680 长边的超宽屏会被 3840 拉成放大模糊。
-//                         代价是浏览器要解码整张 30–44 MP 的图 —— 单张解码后约 120–175 MB 内存,
-//                         切图首帧多等几百毫秒; 本地传输与解码都在秒级以内, 换大屏上的清晰度。)
+//   SERVED_MAX_DIM    0 = 真正使用时的底图 —— **不设上限, 原图原样送**（v1.6.1 起恒为 0）。
+//                        dim===0 时该路直接送原文件字节, 不缩放、不重编码、不进缓存;
+//                        改回正数才会走「缩放 + thumbBufferCache」那条通用路径。
 //   THUMB_DIM       320 = 「当前底图」小方块 (64×42 CSS)
 //   POSTER_DIM      112 = 类型卡里的迷你缩略图 (57×40 CSS; v1.4.0 由 48 提到 112)
 //   PREVIEW_DIM     640 = 设置页图库网格主图 (150–260 CSS 宽 × 2x 屏; v1.4.0 新增)
@@ -57,16 +59,24 @@ const PREVIEW_DIM = 640
 // 派生图 webp 编码质量: poster 只要"先出图", preview 是图库主图, 给高一点。
 const POSTER_QUALITY = 80
 const PREVIEW_QUALITY = 86
-// 运行时 缩略图/缩放后 缓存 (按 相对路径+大小+mtime 失效), 避免每次请求都重缩。
-// 只服务「需要缩放」的那条路 (缩略图; 或把 SERVED_MAX_DIM 设回具体数值时)。
-// 送原图那条**不进缓存**: 39 张合计 820 MB (高清那 20 张就占 764 MB, 单张最大 60 MB),
-// 全缓存住 = 让一个换底图插件常驻 820 MB 内存; 而它省下的只是 OS 页缓存本来就兜住了的读盘。
-// (更正: 这里原先写「约 1.5 GB」是口算错了 —— 把 40–60 MB 套到了全部 39 张上;
-//  真实最坏情况是 39 张字节之和 820 MB。旧代码缓存的是缩到 3840 后的字节, 约 247 MB。)
-const servedBufferCache = new Map()
+// 运行时缩略图缓存 (按 相对路径+大小+mtime 失效), 避免每次请求都重缩。
+// 只服务「需要缩放」的那条路; 送原图那条**不进缓存** —— 39 张合计 820 MB,
+// 全缓存住 = 让一个换底图插件常驻 820 MB 内存, 而它省下的只是 OS 页缓存本来就兜住的读盘。
 const thumbBufferCache = new Map()
 // 派生图 (poster/preview) 内存缓存 (按派生 key 哈希), 避免同一进程内重复读盘。
 const derivedMemCache = new Map()
+
+// JSON 响应小工具（清单 / 设置 / 下载进度三条路由共用）。
+function sendJson(res, status, obj) {
+  const body = JSON.stringify(obj)
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-cache',
+    'content-length': Buffer.byteLength(body),
+  })
+  res.end(body)
+}
+
 // 惰性加载 sharp (宿主可解析到 DSH Desktop 内置的 sharp); 失败则原样输出。
 // 注意: 插件以 junction 挂进 profile 时, ESM 的裸 import('sharp') 会按**真实路径**
 // (D:\DeepSeek\dsh-plugins\...) 找 node_modules —— 那里没有 sharp, 于是静默退化成
@@ -398,13 +408,7 @@ export async function apply(ctx) {
     kind: 'exact',
     path: LIST_PATH,
     handler: async (req, res) => {
-      const body = JSON.stringify(await listWallpapers())
-      res.writeHead(200, {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-cache',
-        'content-length': Buffer.byteLength(body),
-      })
-      res.end(body)
+      sendJson(res, 200, await listWallpapers())
       // 设置页刚打开/刷新 ⇒ 顺手把新图缺的派生图补上 (debounce, 不挡这次响应)。
       scheduleWarmDerived(1200)
     },
@@ -415,15 +419,7 @@ export async function apply(ctx) {
     kind: 'exact',
     path: SETTINGS_PATH,
     handler: async (req, res) => {
-      const send = (status, obj) => {
-        const body = JSON.stringify(obj)
-        res.writeHead(status, {
-          'content-type': 'application/json; charset=utf-8',
-          'cache-control': 'no-cache',
-          'content-length': Buffer.byteLength(body),
-        })
-        res.end(body)
-      }
+      const send = (status, obj) => sendJson(res, status, obj)
       if (req.method === 'GET') { send(200, await readSettings()); return }
       if (req.method === 'PUT' || req.method === 'POST') {
         try {
@@ -455,9 +451,7 @@ export async function apply(ctx) {
     kind: 'exact',
     path: '/bga/wallpapers/fetch-status',
     handler: async (req, res) => {
-      const body = JSON.stringify({ ...fetchState, errors: fetchState.errors.slice(0, 8) })
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-cache', 'content-length': Buffer.byteLength(body) })
-      res.end(body)
+      sendJson(res, 200, { ...fetchState, errors: fetchState.errors.slice(0, 8) })
     },
   }), 'dsh-bg-atelier: fetch-status route')
 
@@ -465,11 +459,7 @@ export async function apply(ctx) {
     kind: 'exact',
     path: '/bga/wallpapers/fetch',
     handler: async (req, res) => {
-      const send = (status, obj) => {
-        const body = JSON.stringify(obj)
-        res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-cache', 'content-length': Buffer.byteLength(body) })
-        res.end(body)
-      }
+      const send = (status, obj) => sendJson(res, status, obj)
       if (req.method !== 'POST') { send(405, { ok: false, error: 'method not allowed' }); return }
       if (fetchState.running) { send(200, { ok: true, running: true, note: 'already running' }); return }
       let manifest
@@ -551,7 +541,7 @@ export async function apply(ctx) {
     // 不设上限 (dim === 0): 直接把原文件**字节**送出去 —— 不缩放、不重编码、也不进内存缓存。
     // 这条路上 sharp 完全不参与 ⇒ 省掉一次"解码+重编码"的 CPU 与几秒的首字节等待。
     if (dim <= 0) return { buffer: await fs.readFile(targetPath), mime: MIME[extOf(targetPath)] }
-    const cache = thumb ? thumbBufferCache : servedBufferCache
+    const cache = thumbBufferCache   // 只有 thumb 会走到这条 (SERVED_MAX_DIM 恒为 0)
     const hit = cache.get(key)
     if (hit !== undefined && hit.key === key) return { buffer: hit.buffer, mime: MIME[extOf(targetPath)] }
     let buffer = await fs.readFile(targetPath)
@@ -701,6 +691,39 @@ export async function apply(ctx) {
       }
     },
   }), 'dsh-bg-atelier: wallpaper route')
+
+  // ---- WE (Wallpaper Engine) 库路由 (/bga/we/*) ----
+  // openExternal: wallpaper:// URI 用, 探测式注入, 绝不硬依赖 electron:
+  //   ① harness 宿主若运行在 Electron 主进程内 → require('electron').shell.openExternal
+  //   ② Windows 独立 Node 宿主 → start 命令走注册表关联 (仅当协议确实注册, 见 routes.js)
+  //   ③ 都没有 → 不注入, routes.js 自动落到 steam.exe -applaunch 兜底。
+  let openExternal = null
+  try {
+    const ele = await import('electron')
+    const sh = ele?.shell ?? ele?.default?.shell
+    if (typeof sh?.openExternal === 'function') openExternal = (u) => sh.openExternal(u)
+  } catch { /* 非 Electron 宿主, 预期路径 */ }
+  if (!openExternal && process.platform === 'win32') {
+    openExternal = (url) => new Promise((resolve, reject) => {
+      // cmd start 的第一个参数是"窗口标题"占位, 空串防止 URL 被当标题吃掉
+      execFile('cmd', ['/c', 'start', '', url], { windowsHide: true }, (err) => err ? reject(err) : resolve())
+    })
+  }
+  // spawnLauncher: 直接拉 exe (steam.exe -applaunch / wallpaper64.exe -control)。
+  // detached + unref: WE/Steam 生命周期不归本进程管, 关掉 DSH 不该带走壁纸引擎。
+  const spawnLauncher = (exe, args) => new Promise((resolve, reject) => {
+    const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true })
+    child.on('error', reject)
+    child.on('spawn', () => { child.unref(); resolve() })
+  })
+  // 解包出静态图 (scene.pkg → webp) 的落点与 sharp 来源: 与 poster/preview 同属派生图，
+  // 放同一个设置目录下，换机/清缓存时一起清。
+  ctx.effect(() => registerWeRoutes(webServer, {
+    openExternal,
+    spawnLauncher,
+    stillsDir: path.join(SETTINGS_DIR, 'we-stills'),
+    getSharp,
+  }), 'dsh-bg-atelier: we routes')
 
   const dir = await wallpaperDir()
   // 启动后延时预热派生图: 新丢进来的图不用等第一次打开设置页才缩图。
