@@ -29,7 +29,7 @@ const SUITES = [
 ]
 
 const EXCLUDED = [
-  ['tools/fetch-wallpapers.mjs --check', '要本机已备好全部底图（55 张 / 约 1.25GB，图片不进 git ⇒ CI 上必然失败）；这个脚本本身还会**真实下载**，绝不能进 CI'],
+  ['tools/fetch-wallpapers.mjs --check', '要本机已备好全部底图（67 张 / 约 1.52GB，图片不进 git ⇒ CI 上必然失败）；这个脚本本身还会**真实下载**，绝不能进 CI'],
   ['tools/test-served-bytes.mjs', '要 wallpapers/ 里的真实图片才能起供图路由断言（离线跑本机复现退出码 1：没有 wallpapers/）'],
   ['tools/make-release.mjs --dry-run', '唯一不上传的分支也要**联网**查 Release 资产表 ⇒ CI（尤其 GitHub Actions 自带 GITHUB_TOKEN 时）不该顺手打外网 API；发布机上手动跑'],
 ]

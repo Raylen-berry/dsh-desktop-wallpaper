@@ -19,7 +19,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { fetchOpts } from '../fetch-wallpapers.js'   // 本机 objects CDN 绕行（见那边注释）
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const MANIFEST = path.join(ROOT, 'wallpapers.manifest.json')
@@ -133,16 +132,22 @@ for (const m of missing) {
     console.error('  已传 ' + sent + ' 张可直接重跑续传（每张传完都有回验，成功的不会重传）。')
     process.exit(1)
   }
-  // 传完立刻 HEAD 回验字节数 —— 不等全批结束才发现错位
-  let verified = false
+  // 传完立刻回验字节数 —— 不等全批结束才发现错位。
+  // 用 API（带 token）而不是 HEAD 下载链：objects CDN 在本机直连会被 TLS reset /
+  // 间歇 ECONNRESET（见 fetch-wallpapers.js 头部注释），HEAD 回验会假报"已传但失败"，
+  // 而 release 资产表里的 size 就是 GitHub 收到的字节数，且这条链路实测稳定。
+  let verified = false, remoteSize = null
   for (let t = 0; t < 5 && !verified; t++) {
-    await new Promise((r) => setTimeout(r, 1000 * (t + 1)))
+    if (t) await new Promise((r) => setTimeout(r, 1000 * t))
     try {
-      const head = await fetch(fetchOpts(base + '/' + m.asset), { method: 'HEAD', redirect: 'follow', headers: { 'user-agent': 'dsh-bg-atelier-make-release' } })
-      verified = head.ok && Number(head.headers.get('content-length')) === m.diskBytes
+      const av = await fetch('https://api.github.com/repos/' + repo + '/releases/' + releaseId + '/assets?per_page=100', { headers: { 'user-agent': 'dsh-bg-atelier-make-release', authorization: 'Bearer ' + TOKEN_FINAL } })
+      if (!av.ok) continue
+      const hit = (await av.json()).find((a) => a.name === m.asset)
+      remoteSize = hit ? hit.size : null
+      verified = remoteSize === m.diskBytes
     } catch { /* 重试 */ }
   }
-  if (!verified) { console.log('已传但回验失败'); console.error('  ✗ ' + m.asset + ' HEAD 拿不到预期字节数 —— 检查网络/代理后重跑'); process.exit(1) }
+  if (!verified) { console.log('已传但回验失败'); console.error('  ✗ ' + m.asset + ' 资产表 size=' + remoteSize + ' ≠ 磁盘 ' + m.diskBytes + ' —— 重跑本脚本即可（它会重新对账）'); process.exit(1) }
   console.log('✓ 回验通过')
   sent++
 }

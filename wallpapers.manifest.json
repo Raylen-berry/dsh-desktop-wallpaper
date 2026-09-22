@@ -1,13 +1,13 @@
 {
   "format": "dsh-bg-atelier-wallpapers/1",
-  "generatedAt": "2026-09-22T09:20:13.871Z",
+  "generatedAt": "2026-09-22T10:58:55.172Z",
   "release": {
     "tag": "wallpapers-v1",
     "repo": "Raylen-berry/dsh-desktop-wallpaper",
     "base": "https://github.com/Raylen-berry/dsh-desktop-wallpaper/releases/download/wallpapers-v1"
   },
-  "total": 55,
-  "totalBytes": 1312612748,
+  "total": 67,
+  "totalBytes": 1635543724,
   "policy": "lossless：一律上传原始文件（PNG/JPG 原样，不缩放、不重编码）",
   "items": [
     {
@@ -282,7 +282,7 @@
     },
     {
       "asset": "w46.png",
-      "path": "重返未来1999/诺谛卡.png",
+      "path": "重返未来1999/诺谛卡1.png",
       "bytes": 2833219,
       "sha256": "65b61ea3c603e7f29a568f2fbdc0900e481394080fb4f688b0bef740a756be3c"
     },
@@ -330,7 +330,7 @@
     },
     {
       "asset": "w54.png",
-      "path": "高清/诺谛卡.png",
+      "path": "高清/诺谛卡1.png",
       "bytes": 50452204,
       "sha256": "ccca3e3d628c9202620a555af1d1475210495bfc61f565e21726d90b790c3ae0"
     },
@@ -339,6 +339,78 @@
       "path": "高清/露西1.png",
       "bytes": 52779080,
       "sha256": "94d217aba48b70dc41ccfdd969a655c7443d70ef7952c0df2ea760ef4f5915e0"
+    },
+    {
+      "asset": "w56.png",
+      "path": "重返未来1999/梁月3.png",
+      "bytes": 3548698,
+      "sha256": "a2b21c53307d2612ed78683ed2dc909b6411539c179a7594bd02d3feec5ae99a"
+    },
+    {
+      "asset": "w57.png",
+      "path": "重返未来1999/花环1.png",
+      "bytes": 3754572,
+      "sha256": "166b6c35f24041c340d5ba33a9ba22fece2f2081f05d786e43941ce6aea98301"
+    },
+    {
+      "asset": "w58.png",
+      "path": "重返未来1999/诺谛卡2.png",
+      "bytes": 3911132,
+      "sha256": "2d892afd0d64fe10d6fa90a3a2e72bd19a603d7d882af121085332834841fb7b"
+    },
+    {
+      "asset": "w59.png",
+      "path": "重返未来1999/远旅1.png",
+      "bytes": 2534230,
+      "sha256": "68db724c28e4982000f69c309132fc9fd9e8ed3c74075968f323ef6ed45744fc"
+    },
+    {
+      "asset": "w60.png",
+      "path": "重返未来1999/远旅2.png",
+      "bytes": 3441779,
+      "sha256": "812d34723cf9d32a453095d79f75fc3054ff263893e463bafa554b74e96a77e0"
+    },
+    {
+      "asset": "w61.png",
+      "path": "重返未来1999/阿尔卡纳.png",
+      "bytes": 3190072,
+      "sha256": "9361db0791e9226f57c716262ec8899380ecc9c2a4d633ecc55fd9ba2bd369dc"
+    },
+    {
+      "asset": "w62.png",
+      "path": "高清/梁月3.png",
+      "bytes": 50333930,
+      "sha256": "2bca8f47e7c6da91e810550c3d876dfdd2498b1fadb8754c15a72ceb6b9f2ae5"
+    },
+    {
+      "asset": "w63.png",
+      "path": "高清/花环1.png",
+      "bytes": 51341596,
+      "sha256": "5f8709d25ec550db02ab5ae3bf4ec0050ed5ec95d91eb50f47dfafc06a00ccb0"
+    },
+    {
+      "asset": "w64.png",
+      "path": "高清/诺谛卡2.png",
+      "bytes": 53365790,
+      "sha256": "66e8c77ee0f80b1b3d7e64bce10879656ec9a1bb6dbd0d5fbb3974d9980482f4"
+    },
+    {
+      "asset": "w65.png",
+      "path": "高清/远旅1.png",
+      "bytes": 47074871,
+      "sha256": "cbd7f36dde9e0a1dd7dfbcd9d68c6a09a127f0e72593be5ed346bb6fecfaefb1"
+    },
+    {
+      "asset": "w66.png",
+      "path": "高清/远旅2.png",
+      "bytes": 49611957,
+      "sha256": "c5e9217d652b28fde9857a2c49de2d8e712579900c2b880bbf4dfe961d978d78"
+    },
+    {
+      "asset": "w67.png",
+      "path": "高清/阿尔卡纳.png",
+      "bytes": 50822349,
+      "sha256": "fd9bf830ca5100268ccaa8d3e9778245b9bbe848534f34d1457beacd1bdc429b"
     }
   ]
 }
