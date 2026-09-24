@@ -56,7 +56,7 @@ export async function discoverWePaths() {
   for (const root of roots) {
     const weDir = path.join(root, "steamapps/common/wallpaper_engine");
     try {
-      await fs.access(path.join(weDir, "wallpaper32.exe"));
+      await fs.access(path.join(weDir, "wallpaper32.exe")).catch(() => fs.access(path.join(weDir, "wallpaper64.exe")));
       return {
         found: true,
         wallpaperEngineDir: weDir,

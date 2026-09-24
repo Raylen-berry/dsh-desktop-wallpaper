@@ -11,22 +11,28 @@
 // 实践中 scene.pkg 里的大图会把 mip 直接存成 PNG（ImageFormat=13，此时 LZ4 标记为 0），
 // 小图（脸上的眼睛/睫毛之类）才走 RGBA8888/DXT + LZ4。
 export const TexFormat = { RGBA8888: 0, DXT5: 4, DXT3: 6, DXT1: 7, RG88: 8, R8: 9 };
+import { LIMITS, bounded, pixels } from './limits.js';
 const FREEIMAGE_PNG = 13;
 
 // ---------------------------------------------------------------- LZ4 block --
 export function lz4Decode(src, destLen) {
+  bounded(destLen, LIMITS.decodedBytes, 'LZ4 解压字节数');
   const dst = Buffer.alloc(destLen);
   let s = 0, d = 0;
   while (s < src.length) {
     const token = src[s++];
     let lit = token >> 4;
-    if (lit === 15) { let b; do { b = src[s++]; lit += b } while (b === 255) }
+    if (lit === 15) { let b; do { if (s >= src.length) throw new Error('lz4: truncated literal length'); b = src[s++]; lit += b } while (b === 255) }
+    if (s + lit > src.length || d + lit > destLen) throw new Error('lz4: literal overrun');
     if (lit) { src.copy(dst, d, s, s + lit); s += lit; d += lit }
     if (s >= src.length) break;
+    if (s + 2 > src.length) throw new Error('lz4: truncated offset');
     const offset = src[s] | (src[s + 1] << 8); s += 2;
+    if (!offset) throw new Error('lz4: zero offset');
     let len = token & 0x0f;
-    if (len === 15) { let b; do { b = src[s++]; len += b } while (b === 255) }
+    if (len === 15) { let b; do { if (s >= src.length) throw new Error('lz4: truncated match length'); b = src[s++]; len += b } while (b === 255) }
     len += 4;
+    if (d + len > destLen) throw new Error('lz4: match overrun');
     let mp = d - offset;
     if (mp < 0) throw new Error("lz4: match offset before output start");
     for (let i = 0; i < len; i++) dst[d++] = dst[mp++];   // 必须逐字节（允许重叠）
@@ -45,9 +51,12 @@ function c565(v) {
 }
 
 export function decodeDXT(width, height, data, kind) {
+  pixels(width, height);
+  if (!['DXT1', 'DXT3', 'DXT5'].includes(kind)) throw new Error('unknown DXT format');
   const out = Buffer.alloc(width * height * 4);
   const bw = Math.max(1, Math.ceil(width / 4)), bh = Math.max(1, Math.ceil(height / 4));
   const blockBytes = kind === "DXT1" ? 8 : 16;
+  if (data.length < bw * bh * blockBytes) throw new Error('DXT blocks truncated');
   for (let by = 0; by < bh; by++) {
     for (let bx = 0; bx < bw; bx++) {
       const base = (by * bw + bx) * blockBytes;
@@ -100,27 +109,33 @@ export function decodeDXT(width, height, data, kind) {
 export function readTex(buf) {
   let o = 0;
   const i32 = () => { const v = buf.readInt32LE(o); o += 4; return v };
-  const nstr = () => { const e = buf.indexOf(0, o); const s = buf.slice(o, e).toString("latin1"); o = e + 1; return s };
+  const nstr = () => { const e = buf.indexOf(0, o); if (e < o || e - o > 32) throw new Error('invalid tex marker'); const s = buf.slice(o, e).toString("latin1"); o = e + 1; return s };
   const magic1 = nstr(), magic2 = nstr();
   if (magic1 !== "TEXV0005" || magic2 !== "TEXI0001") throw new Error(`not a WE tex: ${magic1}/${magic2}`);
   const header = { format: i32(), flags: i32(), texW: i32(), texH: i32(), imgW: i32(), imgH: i32(), unk: i32() };
   const container = nstr();
   const imageCount = i32();
-  const version = Number(container.slice(4, 5));
+  if (!/^TEXB000[1-4]$/.test(container)) throw new Error('unsupported tex container');
+  bounded(imageCount, 256, 'tex image count', 1);
+  const version = Number(container.slice(-1));
   let imageFormat = -1;
   if (container === "TEXB0003" || container === "TEXB0004") imageFormat = i32();
   const images = [];
   for (let i = 0; i < imageCount; i++) {
     const mipmapCount = i32();
+    bounded(mipmapCount, 32, 'tex mip count', 1);
     const mipmaps = [];
     for (let m = 0; m < mipmapCount; m++) {
       const width = i32(), height = i32();
+      pixels(width, height);
       let isLZ4 = false, decompressed = 0, bytes;
-      if (version === 1) { const n = i32(); bytes = buf.slice(o, o + n); o += n; }
+      if (version === 1) { const n = i32(); bounded(n, buf.length - o, 'tex bytes'); bytes = buf.slice(o, o + n); o += n; }
       else {
         isLZ4 = i32() === 1;
         decompressed = i32();
+        bounded(decompressed, LIMITS.decodedBytes, 'tex 解压字节数');
         const n = i32();
+        bounded(n, buf.length - o, 'tex bytes');
         bytes = buf.slice(o, o + n); o += n;
       }
       mipmaps.push({ width, height, isLZ4, decompressed, bytes });
@@ -134,6 +149,7 @@ export function readTex(buf) {
 export function decodeTex(tex, mipIndex = 0) {
   const mip = tex.images[0].mipmaps[mipIndex];
   if (!mip) throw new Error(`no mip ${mipIndex}`);
+  pixels(mip.width, mip.height);
   let bytes = mip.bytes;
   if (mip.isLZ4) bytes = lz4Decode(bytes, mip.decompressed);
   if (tex.imageFormat === FREEIMAGE_PNG) {
@@ -141,7 +157,10 @@ export function decodeTex(tex, mipIndex = 0) {
   }
   const fmt = tex.header.format;
   const args = [mip.width, mip.height, bytes];
-  if (fmt === TexFormat.RGBA8888) return { data: bytes, width: mip.width, height: mip.height };
+  if (fmt === TexFormat.RGBA8888) {
+    if (bytes.length !== mip.width * mip.height * 4) throw new Error('RGBA data length mismatch');
+    return { data: bytes, width: mip.width, height: mip.height };
+  }
   if (fmt === TexFormat.DXT5) return { data: decodeDXT(...args, "DXT5"), width: mip.width, height: mip.height };
   if (fmt === TexFormat.DXT3) return { data: decodeDXT(...args, "DXT3"), width: mip.width, height: mip.height };
   if (fmt === TexFormat.DXT1) return { data: decodeDXT(...args, "DXT1"), width: mip.width, height: mip.height };

@@ -112,6 +112,8 @@ var STORE = {
     // v1.7.0 WE 动效底图: 只存 entry id, 真实 entry (封面/取色/相对路径) 每次启动从 host 的
     // /bga/we/library.json 重新解析 —— 壁纸在 WE 侧取消订阅后这里自然解析不到, 静默跳过。
     weId: null,
+    weMode: 'live',       // live uses the desktop bridge; still remains available.
+    weQuality: 'balanced',
   },
   list: [],
   listDir: '',
@@ -715,6 +717,18 @@ function staticCss() {
   '.bga-focus.on{border-color:var(--bga-accent);box-shadow:0 0 0 1px var(--bga-accent) inset}',
   '.bga-focus.on i{background:var(--bga-accent)}',
   '.bga-note{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.7;border-left:2px solid var(--bga-accent,var(--dsw-alias-brand-primary));padding-left:10px}',
+  '.bga-we-controls{margin:16px 0;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:rgba(248,250,252,.94)}body[data-ds-dark-theme] .bga-we-controls{background:rgba(18,24,34,.92)}',
+  '.bga-we-properties{margin-top:18px}.bga-we-group{margin:10px 0;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden}',
+  '.bga-we-group summary{padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600}.bga-we-group[open] summary{border-bottom:1px solid var(--dsw-alias-border-l1)}',
+  '.bga-we-field{display:grid;grid-template-columns:minmax(120px,1fr) minmax(150px,1.2fr);align-items:center;gap:16px;padding:10px 14px;font-size:12px}.bga-we-field+ .bga-we-field{border-top:1px solid var(--dsw-alias-border-l1)}',
+  '.bga-we-range{display:flex;align-items:center;gap:10px}.bga-we-range input[type=range]{flex:1;min-width:60px;accent-color:var(--bga-accent,var(--dsw-alias-brand-primary))}.bga-we-range input[type=number]{width:70px}',
+  '.bga-we-properties input:not([type=range]):not([type=checkbox]):not([type=color]),.bga-we-properties select{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;padding:6px 8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;min-width:0}',
+  '.bga-we-field input[type=checkbox]{justify-self:end;width:18px;height:18px;accent-color:var(--bga-accent,var(--dsw-alias-brand-primary))}.bga-we-field input[type=color]{justify-self:end;width:48px;height:30px;border:0;background:transparent}',
+  '.bga-we-presets{margin-top:18px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:14px}.bga-we-presets .bga-row{margin-top:8px}.bga-we-controls button:disabled{opacity:.5;cursor:default}',
+  '.bga-we-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.bga-we-toolbar input{flex:1;min-width:140px}.bga-we-toolbar input,.bga-we-toolbar select{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit}',
+  '.bga-we-library{max-height:360px;overflow-y:auto;padding:3px;align-content:start}.bga-we-card{cursor:default}.bga-we-pick{display:block;width:100%;border:0;padding:0;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}.bga-we-pick:focus-visible{outline:2px solid var(--bga-accent);outline-offset:-3px}.bga-we-card-title{display:block;padding:8px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bga-we-card-meta{display:flex;gap:6px;padding:0 8px 8px;font-size:11px;opacity:.8}.bga-we-card-actions{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px 8px}.bga-we-card .bga-note{padding:0 8px 8px}',
+  '.bga-we-actions{padding:10px 0;flex-wrap:wrap}.bga-we-current{margin:12px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px}.bga-we-current strong{overflow-wrap:anywhere}.bga-we-current .bga-row{margin-top:8px}.bga-we-empty{padding:24px;text-align:center}.bga-we-controls .bga-row{flex-wrap:wrap}',
+  '@media(max-width:650px){.bga-we-field{grid-template-columns:1fr;gap:8px}.bga-we-field input[type=checkbox]{justify-self:start}}',
   // ---- v1.1: 当前底图条 + 类型卡 + 二级图库 ----
   '.bga-cur{display:flex;align-items:center;gap:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;padding:8px 10px;background:var(--dsw-alias-bg-layer-1);margin-bottom:10px}',
   '.bga-curbox{position:relative;display:block;width:64px;height:42px;border-radius:8px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);flex:none}',
@@ -1213,13 +1227,12 @@ function SettingsPage() {
 // ------------------------------------------------------------ WE 壁纸库 ----
 // Wallpaper Engine 接入。host 侧 /bga/we/* 路由提供库清单与媒体流;
 // 这里三块: WeSection(设置页列表) + WE_LAYER(全屏动效层, 挂 <html>) + WE 配色联动。
-// scene.pkg(PKGV00200, WE 私有加密容器)不做自研解码: scene 类 = preview.gif
-// 动态封面 + schemecolor 取色联动, 诚实降级。
+// scene 可用桌面原生桥接收 WE 实时画面；静态模式和连接失败时保留静态近似。
 
 var WE_TYPE_LABEL = {
   video: ['视频', '#3b82f6'],
   web: ['网页', '#22c55e'],
-  scene: ['场景·取色联动', '#a855f7'],
+  scene: ['场景', '#a855f7'],
   application: ['程序', '#eab308'],
   unknown: ['暂不支持', '#6b7280'],
 }
@@ -1234,19 +1247,149 @@ function weStillUrl(id) { return '/bga/we/still/' + encodeURIComponent(id) + '.w
 
 // 先铺 192px 的 preview.gif（秒出），同时让 host 去解包出高清静态图，好了再换上去。
 // 解包一次约 5s，不值得让用户对着空白等，也不该阻塞请求。
-function weUpgradeToStill(id, img) {
-  function poll(n) {
-    if (n > 40 || !img.isConnected) return
-    fetch(weStillUrl(id), { method: 'HEAD', cache: 'no-store' })
-      .then(function (r) {
-        if (r.ok) { img.src = weStillUrl(id); return }
-        setTimeout(function () { poll(n + 1) }, 1500)
-      })
-      .catch(function () { setTimeout(function () { poll(n + 1) }, 1500) })
+var WE_NOTICES = new Map()
+var WE_QUALITY = {
+  smooth: { name: '流畅', fps: 60 },
+  balanced: { name: '均衡', fps: 45 },
+  saver: { name: '省资源', fps: 30 },
+}
+var WE_STATS = new Map(), WE_STATS_WATCHERS = []
+function weStats(id, data) { if (data) WE_STATS.set(id, data); else WE_STATS.delete(id); WE_STATS_WATCHERS.forEach(function (f) { f() }) }
+function weNotice(id, message) {
+  WE_NOTICES.set(id, message)
+  if (WE_NOTICES.size > 256) WE_NOTICES.delete(WE_NOTICES.keys().next().value)
+  weNotify()
+}
+
+// The companion WE window follows DSH's native content rectangle. WE reads the
+// actual cursor itself; this video layer never consumes clicks or keyboard input.
+function weStartNative(entry, root) {
+  var bridge = window.dshWallpaper, destroyed = false, generation = 0
+  var bridgeVisible = !document.hidden
+  var stream = null, video = null, token = null, timer = null, stillCleanup = null
+  var stopStats = null, placeholder = root.querySelector ? root.querySelector('img') : null
+  function stopRun() {
+    generation++
+    clearTimeout(timer)
+    if (stopStats) { stopStats(); stopStats = null }
+    if (placeholder) placeholder.style.display = ''
+    weStats(entry.id, null)
+    var old = token; token = null
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop() }); stream = null }
+    if (video) { video.remove(); video = null }
+    if (old) bridge.stop(old).catch(function () {})
   }
-  fetch('/bga/we/still?id=' + encodeURIComponent(id), { method: 'POST' })
-    .then(function () { poll(0) })
-    .catch(function () { /* 接口不可用: 保持 gif */ })
+  function fallback(message) {
+    stopRun()
+    console.error('[bga-live] ' + message)
+    weNotice(entry.id, message + '；当前保留静态预览')
+    if (!entry.stillReady && !stillCleanup) {
+      var img = root.querySelector('img')
+      if (img) stillCleanup = weUpgradeToStill(entry.id, img, message + '；')
+    }
+  }
+  async function start() {
+    if (destroyed || !bridgeVisible) return
+    stopRun()
+    var run = generation
+    token = 'bga-' + Date.now() + '-' + Math.random().toString(36).slice(2)
+    var requested = token
+    weNotice(entry.id, '正在连接 WE 原生场景…')
+    timer = setTimeout(function () { if (!destroyed && run === generation) fallback('实时连接超时') }, 25000)
+    try {
+      var ready = await bridge.start(entry.id, requested)
+      if (destroyed || run !== generation) { bridge.stop(requested).catch(function () {}); return }
+      var quality = WE_QUALITY[STORE.state.weQuality] || WE_QUALITY.balanced
+      // Windows window capture here stalls badly when forced to rescale. Keep
+      // native pixels and adjust cadence only; mouse alignment remains exact.
+      var next = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: quality.fps, max: quality.fps }, cursor: 'never' }, audio: false })
+      if (destroyed || run !== generation) { next.getTracks().forEach(function (t) { t.stop() }); bridge.stop(requested).catch(function () {}); return }
+      stream = next
+      video = document.createElement('video')
+      video.muted = true; video.autoplay = true; video.playsInline = true
+      video.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none'
+      video.srcObject = stream
+      root.appendChild(video)
+      stream.getVideoTracks()[0].addEventListener('ended', function () {
+        if (!destroyed && run === generation && bridgeVisible) fallback('WE 实时连接已结束')
+      }, { once: true })
+      await video.play()
+      if (destroyed || run !== generation) return
+      clearTimeout(timer)
+      if (placeholder) placeholder.style.display = 'none'
+      stopStats = weWatchFrames(entry.id, video)
+      weNotice(entry.id, 'WE 原生实时场景 · 鼠标跟随 · ' + quality.name + '模式')
+    } catch (e) {
+      if (!destroyed && run === generation) fallback('实时背景未连接：' + String(e.message || e).slice(0, 180))
+    }
+  }
+  var setVisible = function (visible) {
+    if (bridgeVisible === visible) return
+    bridgeVisible = visible
+    if (!visible) { stopRun(); weNotice(entry.id, '窗口隐藏，实时背景已暂停') }
+    else start()
+  }
+  var visibility = function () { setVisible(!document.hidden) }
+  var unwatch = bridge.onVisibility ? bridge.onVisibility(setVisible) : null
+  document.addEventListener('visibilitychange', visibility)
+  // Start after weShow attaches the fallback image and root to the document.
+  timer = setTimeout(start, 0)
+  return function () {
+    destroyed = true; stopRun()
+    document.removeEventListener('visibilitychange', visibility)
+    if (unwatch) unwatch()
+    if (stillCleanup) stillCleanup()
+  }
+}
+// Count presented frames; update only the small status component, never theme CSS.
+function weWatchFrames(id, video) {
+  if (!video.requestVideoFrameCallback) return function () {}
+  var stopped = false, handle, first = null, frames = 0, previous = null, longest = 0
+  function frame(now) {
+    if (stopped) return
+    if (first === null) first = now
+    if (previous !== null) longest = Math.max(longest, now - previous)
+    previous = now; frames++
+    if (now - first >= 2000) {
+      weStats(id, { fps: Math.round((frames - 1) * 10000 / (now - first)) / 10, width: video.videoWidth, height: video.videoHeight, gap: Math.round(longest) })
+      frames = 1; first = now; longest = 0
+    }
+    handle = video.requestVideoFrameCallback(frame)
+  }
+  handle = video.requestVideoFrameCallback(frame)
+  return function () { stopped = true; if (video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(handle) }
+}
+function WeLiveStatus(props) {
+  var state = React.useState(0), bump = state[1]
+  React.useEffect(function () { var f = function () { bump(function (n) { return n + 1 }) }; WE_STATS_WATCHERS.push(f); return function () { var i = WE_STATS_WATCHERS.indexOf(f); if (i >= 0) WE_STATS_WATCHERS.splice(i, 1) } }, [])
+  var s = WE_STATS.get(props.id)
+  return h('span', { className: 'bga-note', role: 'status' }, s ? '实时 ' + s.fps + ' 帧/秒 · ' + s.width + ' × ' + s.height + (s.gap > 100 ? ' · 检测到卡顿，可选省资源模式' : '') : '帧率将在播放后显示')
+}
+function weUpgradeToStill(id, img, prefix) {
+  var controller = new AbortController(), timer, disposed = false
+  function note(message) {
+    WE_NOTICES.set(id, (prefix || '') + message)
+    if (WE_NOTICES.size > 256) WE_NOTICES.delete(WE_NOTICES.keys().next().value)
+    weNotify()
+  }
+  async function check(method, count) {
+    if (disposed || !img.isConnected) return
+    try {
+      var response = await fetch('/bga/we/still?id=' + encodeURIComponent(id), { method: method, cache: 'no-store', signal: controller.signal })
+      var result = await response.json()
+      if (disposed) return
+      if (!response.ok || result.state === 'error' || result.state === 'busy') throw new Error(result.error || 'HTTP ' + response.status)
+      if (result.state === 'ready') { img.src = weStillUrl(id); note('静态近似图已就绪'); return }
+      if (count >= 120) { note('仍在生成，稍后刷新查看；当前保留预览图'); return }
+      note(result.state === 'queued' ? '静态图排队中，当前显示预览图' : '正在生成静态近似图…')
+      timer = setTimeout(function () { check('GET', count + 1) }, 1500)
+    } catch (e) {
+      if (!disposed) note('静态图未生成：' + String(e.message || e).slice(0, 180) + '。保留预览图；失败后冷却一分钟再试。')
+    }
+  }
+  // Called after the image is attached; disposal cancels polls, not a shared host job.
+  timer = setTimeout(function () { check('POST', 0) }, 0)
+  return function () { disposed = true; clearTimeout(timer); controller.abort() }
 }
 
 // "0.1 0.6 1" -> [r,g,b] 浮点；非法返回 null (与 host scanner 同规则)
@@ -1346,18 +1489,19 @@ function weShow(entry) {
     root.appendChild(f)
     WE_LAYER.cleanup = function () { f.src = 'about:blank' }
   } else if (entry.type === 'scene') {
-    // entry.file(scene.json) 封在 .pkg 里, 磁盘不存在 —— 只读 previewRel/schemeColor。
-    var rgb = weParseSchemeColor(entry.schemeColor)
-    if (rgb) weApplySchemeColor(rgb)
+    // The host reports unsupported unpacked projects explicitly; selection
+    // never changes manual colors, including when generation fails.
     // 高清静态图优先（host 已解包好），否则先 gif 再后台升级
     var still = entry.stillReady ? weStillUrl(entry.id) : null
     var src = still || (entry.previewRel ? weMediaUrl(entry, entry.previewRel) : null)
-    if (src) {
-      var img = document.createElement('img')
-      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover'
-      img.src = src
-      root.appendChild(img)
-      if (!still) weUpgradeToStill(entry.id, img)
+    var img = document.createElement('img')
+    img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover'
+    if (src) img.src = src
+    root.appendChild(img)
+    if (STORE.state.weMode !== 'still' && window.dshWallpaper) WE_LAYER.cleanup = weStartNative(entry, root)
+    else {
+      if (!still) WE_LAYER.cleanup = weUpgradeToStill(entry.id, img)
+      if (STORE.state.weMode !== 'still') weNotice(entry.id, '原生桥尚未加载，当前为静态近似；安装桥后需重启 DSH')
     }
   } else if (entry.previewRel) {
     var img2 = document.createElement('img')
@@ -1378,99 +1522,215 @@ function weRestore() {
     .then(function (r) { return r.ok ? r.json() : {} })
     .then(function (d) {
       var hit = (d.entries || []).filter(function (e) { return e.id === id })[0]
-      if (hit) weShow(hit)
+      if (hit && STORE.state.weId === id && !weActive()) weShow(hit)
     })
     .catch(function () { /* host 路由没就绪: 下次启动再说 */ })
 }
 
-// ---- 设置页区块: 库列表 + bridge 徽标 + 应用/清除 ----
-function WeSection() {
-  var stPair = React.useState({ loading: true, entries: null, weFound: false, bridge: null, error: '' })
-  var st = stPair[0], setSt = stPair[1]
-  var selPair = React.useState(STORE.state.weId || null)   // 当前已应用的 entry id
-  var selId = selPair[0], setSelId = selPair[1]
-
-  function loadStatus(force) {
-    fetch('/bga/we/status' + (force ? '?force=1' : ''), { cache: 'no-store' })
-      .then(function (r) { return r.json() })
-      .then(function (s) { setSt(function (p) { return Object.assign({}, p, { bridge: s.bridge }) }) })
-      .catch(function () { /* 徽标保持未知 */ })
-  }
-  function refresh() {
-    setSt(function (p) { return Object.assign({}, p, { loading: true, error: '' }) })
-    loadStatus(false)
-    fetch('/bga/we/library.json', { cache: 'no-store' })
-      .then(function (r) { return r.json() })
-      .then(function (d) {
-        setSt({ loading: false, entries: d.entries || [], weFound: !!d.weFound, bridge: st.bridge, error: '' })
-      })
-      .catch(function (e) { setSt(function (p) { return Object.assign({}, p, { loading: false, error: '扫描失败: ' + String(e) }) }) })
-  }
-  React.useEffect(function () { refresh() }, [])
-
-  function applyEntry(entry) {
-    weShow(entry)
-    setSelId(entry.id)
-    STORE.set({ weId: entry.id })     // 只记 id, 下次启动 weRestore() 自己解析回 entry
-  }
-  function clearWe() {
-    weDispose()
-    setSelId(null)
-    STORE.set({ weId: null })
-  }
-  function openInWe(id, btn) {
-    var old = btn.textContent
-    btn.textContent = '打开中…'
-    fetch('/bga/we/open-in-we?id=' + encodeURIComponent(id), { cache: 'no-store' })
-      .then(function (r) { btn.textContent = r.ok ? '已调起' : '失败(' + r.status + ')' })
-      .catch(function () { btn.textContent = '失败' })
-      .finally(function () { setTimeout(function () { btn.textContent = old }, 1500) })
-  }
-
-  var head = h('div', { className: 'bga-row', style: { alignItems: 'center', gap: '10px', marginBottom: '10px' } },
-    h('span', { className: 'bga-sub', style: { margin: 0 } },
-      st.loading ? '正在扫描 WE 库…'
-        : !st.weFound ? '未找到 Wallpaper Engine（已尝试注册表与常见路径）'
-        : '本地库共 ' + st.entries.length + ' 张'),
-    st.error ? h('span', { className: 'bga-field' }, st.error) : null,
-    h('span', {
-      className: 'bga-chip',
-      style: { background: st.bridge && st.bridge.available ? '#166534' : '#374151' },
-    }, st.bridge == null ? 'bridge: 检测中' : st.bridge.available ? 'WE 在线' : '离线模式'),
-    h('button', { type: 'button', className: 'bga-btn', onClick: function () { refresh() } }, '刷新'),
-    h('button', { type: 'button', className: 'bga-btn', onClick: function () { loadStatus(true) } }, '重探端口'),
-    selId ? h('button', { type: 'button', className: 'bga-btn', onClick: clearWe }, '清除动效') : null)
-
-  if (!st.entries || !st.entries.length) {
-    return Section('Wallpaper Engine 库', '只读本机已安装/订阅内容, 不分发任何 WE 素材。scene 类壁纸 = 动态封面 + 取色联动 (不渲染 .pkg)。', head)
-  }
-  var grid = h('div', { className: 'bga-grid' }, st.entries.map(function (entry) {
-    var tl = WE_TYPE_LABEL[entry.type] || WE_TYPE_LABEL.unknown
-    return h('div', {
-      key: entry.id, className: 'bga-card' + (entry.id === selId ? ' on' : ''),
-      style: { opacity: (WE_TYPE_LABEL[entry.type] ? 1 : 0.55), cursor: 'pointer' },
-      title: '点击作为动效底图',
-      onClick: function () { applyEntry(entry) },
-    },
-      entry.previewRel ? h('img', {
-        className: 'bga-thumb', style: { height: '86px' },
-        src: weMediaUrl(entry, entry.previewRel),
-        onError: function (e) { e.target.style.visibility = 'hidden' },
-      }) : h('div', { className: 'bga-emptymini' }, '无封面'),
-      h('span', {
-        style: { position: 'absolute', left: '6px', top: '6px', padding: '1px 7px', borderRadius: '6px', fontSize: '11px', color: '#fff', background: tl[1] },
-      }, tl[0]),
-      /^\d+$/.test(entry.id) ? h('button', {
-        type: 'button',
-        style: { position: 'absolute', right: '6px', top: '6px', padding: '1px 7px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,.35)', background: 'rgba(0,0,0,.45)', color: '#fff', cursor: 'pointer' },
-        onClick: function (e) { e.stopPropagation(); openInWe(entry.id, e.currentTarget) },
-      }, '在 WE 打开') : null,
-      h('div', {
-        style: { padding: '5px 8px', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-      }, entry.title))
-  }))
-  return Section('Wallpaper Engine 库', '只读本机已安装/订阅内容, 不分发任何 WE 素材。点卡片即把该壁纸铺成 DSH 背景动效: video 循环播 / web 沙箱 iframe / scene = 动态封面 + 取色联动 (不渲染 .pkg)。', head, grid)
+function weColorHex(value) {
+  var rgb = String(value || '').trim().split(/\s+/).map(Number)
+  return '#' + [0, 1, 2].map(function (i) { return Math.round(Math.max(0, Math.min(1, rgb[i] || 0)) * 255).toString(16).padStart(2, '0') }).join('')
 }
+function WeProperties(props) {
+  var pair = React.useState({ fields: [], values: {}, presets: [], loading: true, busy: false, error: '', dirty: false, note: '' })
+  var state = pair[0], set = pair[1], alive = React.useRef(false), request = React.useRef(0), dirty = React.useRef(false)
+  var applied = React.useRef(null), working = React.useRef(false)
+  var presetPair = React.useState(''), preset = presetPair[0], setPreset = presetPair[1]
+  var namePair = React.useState(''), name = namePair[0], setName = namePair[1]
+  var bridge = window.dshWallpaper
+  function accept(result, note) { applied.current = result; dirty.current = false; set({ fields: result.fields, values: result.values, presets: result.presets, loading: false, busy: false, error: '', dirty: false, note: note || '' }) }
+  function read() {
+    if (working.current || dirty.current) return
+    if (!bridge || !bridge.properties) { set(function (s) { return Object.assign({}, s, { loading: false, error: '桌面桥更新后，完全退出并重启 DSH 才能加载属性面板。' }) }); return }
+    var seq = ++request.current
+    bridge.properties(props.id).then(function (r) { if (alive.current && seq === request.current && !dirty.current) accept(r) })
+      .catch(function (e) { if (alive.current && seq === request.current) set(function (s) { return Object.assign({}, s, { loading: false, error: String(e.message || e) }) }) })
+  }
+  React.useEffect(function () {
+    alive.current = true; read()
+    var onReady = function () { if (!dirty.current && String(WE_NOTICES.get(props.id)).indexOf('WE 原生实时场景') === 0) read() }
+    WE_WATCHERS.push(onReady)
+    return function () { alive.current = false; request.current++; var i = WE_WATCHERS.indexOf(onReady); if (i >= 0) WE_WATCHERS.splice(i, 1) }
+  }, [props.id])
+  function change(key, value) {
+    request.current++
+    set(function (s) {
+      var values = Object.assign({}, s.values); values[key] = value
+      var baseline = applied.current ? applied.current.values : {}
+      dirty.current = Object.keys(values).some(function (k) { return values[k] !== baseline[k] })
+      return Object.assign({}, s, { values: values, dirty: dirty.current, note: '' })
+    })
+  }
+  function discard() {
+    if (!working.current && applied.current) { request.current++; accept(applied.current, '已放弃未应用的更改') }
+  }
+  async function action(kind) {
+    if (!bridge || !bridge.properties || working.current) return
+    working.current = true
+    var seq = ++request.current; set(function (s) { return Object.assign({}, s, { busy: true, error: '', note: '' }) })
+    try {
+      if (kind === 'save' && state.dirty) await bridge.properties(props.id, 'apply', state.values)
+      var result = await bridge.properties(props.id, kind, kind === 'apply' ? state.values : undefined, kind === 'save' ? name.trim() : preset)
+      if (alive.current && seq === request.current) { accept(result, kind === 'save' ? '预设已保存' : kind === 'reset' ? '已恢复默认值' : '已应用到 DSH 背景'); if (kind === 'save') setPreset(name.trim()) }
+    } catch (e) { if (alive.current && seq === request.current) set(function (s) { return Object.assign({}, s, { busy: false, error: String(e.message || e) }) }) }
+    finally { working.current = false }
+  }
+  function field(p) {
+    var value = state.values[p.key], input
+    if (p.type === 'bool') input = h('input', { type: 'checkbox', checked: !!value, 'aria-label': p.text, onChange: function (e) { change(p.key, e.target.checked) } })
+    else if (p.type === 'slider') input = h('div', { className: 'bga-we-range' },
+      h('input', { type: 'range', min: p.min, max: p.max, step: p.step, value: value == null ? p.min : value, 'aria-label': p.text, onChange: function (e) { change(p.key, Number(e.target.value)) } }),
+      h('input', { type: 'number', min: p.min, max: p.max, step: p.step, value: value == null ? '' : value, 'aria-label': p.text + '数值', onChange: function (e) { var v = Number(e.target.value); if (Number.isFinite(v)) change(p.key, Math.max(p.min, Math.min(p.max, v))) } }))
+    else if (p.type === 'color') input = h('input', { type: 'color', value: weColorHex(value), 'aria-label': p.text, onChange: function (e) { var hex = e.target.value; change(p.key, [1, 3, 5].map(function (i) { return (parseInt(hex.slice(i, i + 2), 16) / 255).toFixed(5) }).join(' ')) } })
+    else if (p.type === 'combo') input = h('select', { value: String(value), 'aria-label': p.text, onChange: function (e) { var option = p.options.find(function (o) { return String(o.value) === e.target.value }); if (option) change(p.key, option.value) } }, p.options.map(function (o) { return h('option', { key: String(o.value), value: String(o.value) }, o.label) }))
+    else if (p.type === 'textinput') input = h('input', { type: 'text', maxLength: 200, value: value || '', 'aria-label': p.text, onChange: function (e) { change(p.key, e.target.value) } })
+    else input = h('span', { className: 'bga-note' }, p.note)
+    return h('div', { key: p.key, className: 'bga-we-field' }, h('span', null, p.text), input)
+  }
+  var groups = []
+  state.fields.forEach(function (p) { var g = groups.find(function (x) { return x.name === p.group }); if (!g) { g = { name: p.group, fields: [] }; groups.push(g) } g.fields.push(p) })
+  return h('section', { className: 'bga-we-properties', 'aria-label': '场景属性' },
+    h('div', { className: 'bga-row' }, h('strong', null, '场景属性'), h('span', { className: 'bga-note' }, state.dirty ? '有未应用的更改' : state.note || '仅控制 DSH 中的壁纸')),
+    state.loading ? h('p', { className: 'bga-note' }, '正在读取场景属性…') : null,
+    state.error ? h('div', { role: 'alert', className: 'bga-note' }, state.error, h('button', { type: 'button', className: 'bga-btn', disabled: state.busy || state.dirty, onClick: read }, '重新读取')) : null,
+    state.fields.length ? h('fieldset', { disabled: state.busy, style: { border: 0, padding: 0, margin: 0 } },
+      h('div', { className: 'bga-row bga-we-actions' },
+        h('button', { type: 'button', className: 'bga-btn', disabled: !state.dirty, onClick: function () { action('apply') } }, state.busy ? '处理中…' : '应用到此背景'),
+        h('button', { type: 'button', className: 'bga-btn', disabled: !state.dirty, onClick: discard }, '放弃修改'),
+        h('button', { type: 'button', className: 'bga-btn', onClick: function () { action('reset') } }, '恢复默认')),
+      groups.map(function (g, i) { return h('details', { key: g.name, className: 'bga-we-group', open: i === 0 }, h('summary', null, g.name, h('span', { className: 'bga-note' }, ' · ' + g.fields.length + ' 项')), g.fields.map(field)) }),
+      h('p', { className: 'bga-note' }, '调整后点击应用。拖动滑块不会反复重启场景。音量默认静音；自定义图片等文件选项仍需在 WE 设置。'),
+
+      h('div', { className: 'bga-we-presets' }, h('strong', null, '我的预设'),
+        h('div', { className: 'bga-row' }, h('input', { type: 'text', placeholder: '例如：安静办公', maxLength: 40, value: name, 'aria-label': '预设名称', onChange: function (e) { setName(e.target.value) } }), h('button', { type: 'button', className: 'bga-btn', disabled: !name.trim(), onClick: function () { action('save') } }, '保存当前设置')),
+        h('div', { className: 'bga-row' }, h('select', { value: preset, 'aria-label': '已保存预设', onChange: function (e) { setPreset(e.target.value) } }, h('option', { value: '' }, '选择预设'), state.presets.map(function (s) { return h('option', { key: s, value: s }, s) })), h('button', { type: 'button', className: 'bga-btn', disabled: !preset, onClick: function () { action('load') } }, '加载')))) : null)
+}
+
+// ---- WE library: data loading, selection and independently rendered cards ----
+function weFilterLibrary(entries, query, type) {
+  var needle = String(query || '').trim().toLocaleLowerCase()
+  return entries.filter(function (entry) {
+    return (type === 'all' || entry.type === type) && (!needle ||
+      [entry.title, entry.id].concat(entry.tags || []).join(' ').toLocaleLowerCase().indexOf(needle) >= 0)
+  })
+}
+
+function WeLibraryCard(props) {
+  var entry = props.entry, label = WE_TYPE_LABEL[entry.type] || WE_TYPE_LABEL.unknown
+  var pair = React.useState({ busy: false, note: '', error: false }), state = pair[0], set = pair[1]
+  var pending = React.useRef(null), mounted = React.useRef(false)
+  React.useEffect(function () {
+    mounted.current = true
+    return function () { mounted.current = false; if (pending.current) pending.current.abort() }
+  }, [])
+  async function open() {
+    if (pending.current) return
+    var controller = new AbortController(); pending.current = controller
+    set({ busy: true, note: '', error: false })
+    try {
+      var response = await fetch('/bga/we/open-in-we?id=' + encodeURIComponent(entry.id), { method: 'POST', cache: 'no-store', signal: controller.signal })
+      var result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'HTTP ' + response.status)
+      if (mounted.current) set({ busy: false, note: result.message || (result.targeted ? '已发送到 WE' : 'WE 已启动，请再点一次'), error: false })
+    } catch (e) {
+      if (mounted.current && !controller.signal.aborted) set({ busy: false, note: String(e.message || e), error: true })
+    } finally { if (pending.current === controller) pending.current = null }
+  }
+  return h('article', { className: 'bga-card bga-we-card' + (props.selected ? ' on' : '') },
+    h('button', { type: 'button', className: 'bga-we-pick', 'aria-pressed': props.selected, 'aria-label': '应用背景：' + entry.title, title: entry.title, onClick: function () { props.onSelect(entry) } },
+      entry.previewRel ? h('img', { className: 'bga-thumb', style: { height: '86px' }, alt: '', loading: 'lazy', decoding: 'async', src: weMediaUrl(entry, entry.previewRel), onError: function (e) { e.target.style.visibility = 'hidden' } }) : h('div', { className: 'bga-emptymini' }, '无封面'),
+      h('span', { className: 'bga-we-card-title' }, entry.title),
+      h('span', { className: 'bga-we-card-meta' }, label[0], ' · ', entry.source === 'local' ? '本地项目' : '订阅', props.selected ? ' · 使用中' : '')),
+    h('div', { className: 'bga-we-card-actions' },
+      ['scene', 'video', 'web'].includes(entry.type) ? h('button', { type: 'button', className: 'bga-btn', disabled: state.busy, onClick: open }, state.busy ? '打开中…' : '在 WE 打开') : null,
+      weParseSchemeColor(entry.schemeColor) ? h('button', { type: 'button', className: 'bga-btn', title: '保存为手动配色，清除背景后仍保留', onClick: function () { weApplySchemeColor(weParseSchemeColor(entry.schemeColor)) } }, '采用壁纸配色') : null),
+    state.note ? h('p', { className: 'bga-note', role: state.error ? 'alert' : 'status' }, state.note) : null)
+}
+
+function WePlaybackControls(props) {
+  if (props.entry.type !== 'scene' || STORE.state.weMode === 'still') return null
+  return h('div', { className: 'bga-we-controls' },
+    h('div', { className: 'bga-row' }, h('strong', null, '播放质量'),
+      h('select', { className: 'bga-btn', 'aria-label': '实时播放质量', value: STORE.state.weQuality || 'balanced', onChange: function (e) { props.onQuality(e.target.value) } },
+        Object.keys(WE_QUALITY).map(function (key) { var quality = WE_QUALITY[key]; return h('option', { key: key, value: key }, quality.name + ' · ' + quality.fps + ' 帧目标') })),
+      h(WeLiveStatus, { id: props.entry.id })),
+    h('p', { className: 'bga-note' }, '目标帧率不等于实际帧率；复杂壁纸可关闭部分自定义动效。'),
+    h(WeProperties, { key: props.entry.id, id: props.entry.id }))
+}
+
+function WeSection() {
+  var stPair = React.useState({ loading: true, entries: [], weFound: false, bridge: null, error: '' })
+  var st = stPair[0], setState = stPair[1], active = React.useRef(false)
+  var requests = React.useRef({ library: null, status: null })
+  var selPair = React.useState(STORE.state.weId || null), selId = selPair[0], setSelId = selPair[1]
+  var searchPair = React.useState(''), query = searchPair[0], setQuery = searchPair[1]
+  var typePair = React.useState('all'), type = typePair[0], setType = typePair[1]
+  function patch(values) { if (active.current) setState(function (previous) { return Object.assign({}, previous, values) }) }
+  // Independent status/library requests cannot overwrite each other or a newer refresh.
+  async function load(kind, force) {
+    if (requests.current[kind]) requests.current[kind].abort()
+    var controller = new AbortController(); requests.current[kind] = controller
+    if (kind === 'library') patch({ loading: true, error: '' })
+    try {
+      var response = await fetch('/bga/we/' + (kind === 'library' ? 'library.json' : 'status') + (force ? '?force=1' : ''), { cache: 'no-store', signal: controller.signal })
+      if (!response.ok) throw new Error('HTTP ' + response.status)
+      var result = await response.json()
+      if (controller.signal.aborted) return
+      patch(kind === 'library' ? { loading: false, entries: result.entries || [], weFound: !!result.weFound, error: '' } : { bridge: result.bridge })
+    } catch (e) {
+      if (!controller.signal.aborted) patch(kind === 'library' ? { loading: false, error: '扫描失败：' + String(e.message || e) } : { bridge: { running: null } })
+    }
+  }
+  function refresh(force) { load('status', force); load('library', force) }
+  React.useEffect(function () {
+    active.current = true; refresh(false)
+    var update = function () { patch({}); setSelId(STORE.state.weId || null) }
+    WE_WATCHERS.push(update)
+    return function () {
+      active.current = false
+      Object.keys(requests.current).forEach(function (key) { if (requests.current[key]) requests.current[key].abort() })
+      var i = WE_WATCHERS.indexOf(update); if (i >= 0) WE_WATCHERS.splice(i, 1)
+    }
+  }, [])
+  function applyEntry(entry) {
+    STORE.set({ weId: entry.id }); setSelId(entry.id); weShow(entry)
+  }
+  function clearWe() { STORE.set({ weId: null }); setSelId(null); weDispose() }
+  var selected = st.entries.find(function (entry) { return entry.id === selId })
+  function setMode(mode) {
+    if (mode === STORE.state.weMode) return
+    STORE.set({ weMode: mode }); if (selected) weShow(selected); patch({})
+  }
+  function setQuality(value) {
+    if (!WE_QUALITY[value] || value === STORE.state.weQuality) return
+    STORE.set({ weQuality: value }); if (selected) weShow(selected); patch({})
+  }
+  var visible = weFilterLibrary(st.entries, query, type)
+  return Section('Wallpaper Engine 库', '读取本机订阅与本地项目。实时场景由 WE 渲染，保留鼠标视差。',
+    h('div', { className: 'bga-row' },
+      h('span', { className: 'bga-note', role: 'status' }, st.loading ? '正在扫描 WE 库…' : st.weFound ? '本地库共 ' + st.entries.length + ' 张' : '未找到 Wallpaper Engine'),
+      h('span', { className: 'bga-chip', style: { background: st.bridge && st.bridge.running === true ? '#166534' : '#374151' } }, st.bridge == null ? 'WE 状态检测中' : st.bridge.running === true ? 'WE 已运行' : st.bridge.running === false ? 'WE 未运行' : 'WE 进程状态未知'),
+      h('button', { type: 'button', className: 'bga-btn', disabled: st.loading, onClick: function () { refresh(true) } }, '刷新')),
+    st.error ? h('p', { className: 'bga-note', role: 'alert' }, st.error) : null,
+    selId ? h('div', { className: 'bga-we-current' },
+      h('strong', null, '当前背景：' + (selected ? selected.title : '已保存的壁纸')),
+      h('div', { className: 'bga-row' },
+        selected && selected.type === 'scene' ? h('button', { type: 'button', className: 'bga-btn', 'aria-pressed': STORE.state.weMode !== 'still', onClick: function () { setMode('live') } }, '实时动效') : null,
+        selected && selected.type === 'scene' ? h('button', { type: 'button', className: 'bga-btn', 'aria-pressed': STORE.state.weMode === 'still', onClick: function () { setMode('still') } }, '静态近似') : null,
+        selected && selected.type === 'scene' && STORE.state.weMode !== 'still' ? h('button', { type: 'button', className: 'bga-btn', onClick: function () { weShow(selected) } }, '重新连接') : null,
+        h('button', { type: 'button', className: 'bga-btn', onClick: clearWe }, '清除 WE 背景')),
+      selected && selected.type === 'scene' ? h('p', { className: 'bga-note', role: 'status' }, STORE.state.weMode === 'still' ? '当前使用静态近似图' : WE_NOTICES.get(selId) || '正在连接实时背景…') : null) : null,
+    st.entries.length ? h('div', { className: 'bga-we-toolbar' },
+      h('input', { type: 'search', value: query, placeholder: '搜索名称、标签或编号', 'aria-label': '搜索壁纸', onChange: function (e) { setQuery(e.target.value) } }),
+      h('select', { value: type, 'aria-label': '壁纸类型', onChange: function (e) { setType(e.target.value) } },
+        h('option', { value: 'all' }, '全部类型'), ['scene', 'video', 'web'].map(function (key) { return h('option', { key: key, value: key }, WE_TYPE_LABEL[key][0]) })),
+      h('span', { className: 'bga-note', role: 'status' }, visible.length + ' / ' + st.entries.length),
+      query || type !== 'all' ? h('button', { type: 'button', className: 'bga-btn', onClick: function () { setQuery(''); setType('all') } }, '清空筛选') : null) : null,
+    visible.length ? h('div', { className: 'bga-grid bga-we-library' }, visible.map(function (entry) { return h(WeLibraryCard, { key: entry.id, entry: entry, selected: entry.id === selId, onSelect: applyEntry }) })) :
+      !st.loading ? h('p', { className: 'bga-note bga-we-empty' }, st.entries.length ? '没有匹配的壁纸，试试其他名称或类型。' : '暂无壁纸。添加 WE 订阅或本地项目后点击刷新。') : null,
+    selected ? h(WePlaybackControls, { entry: selected, onQuality: setQuality }) : null)
+}
+
 
 // -------------------------------------------------------------------- 入口 --
 
@@ -1531,7 +1791,8 @@ function apply(ctx) {
 
     // WE 动效层的出现/消失要重建动态样式与 token (为什么: 见 WE_LAYER 上方的注释)
     ctx.effect(function () {
-      var fn = function () { rebuildStyle(); rebuildTokens() }
+      var previousActive = weActive()
+      var fn = function () { var active = weActive(); if (active === previousActive) return; previousActive = active; rebuildStyle(); rebuildTokens() }
       WE_WATCHERS.push(fn)
       return function () { var i = WE_WATCHERS.indexOf(fn); if (i >= 0) WE_WATCHERS.splice(i, 1) }
     }, 'bga-we-watch')
@@ -1571,6 +1832,7 @@ function apply(ctx) {
   // "数量随画布宽度"、"卡面阴影独立开关"与 DockFx 真渲染。
   exports.internals = {
     STORE: STORE,
+    weShow: weShow, weDispose: weDispose, weStartNative: weStartNative, weApplySchemeColor: weApplySchemeColor, WeSection: WeSection, WeProperties: WeProperties, weFilterLibrary: weFilterLibrary, weMediaUrl: weMediaUrl,
     staticCss: staticCss,
     dynamicCss: function () { return dynamicCss(STORE.state) },
     DockFx: DockFx,

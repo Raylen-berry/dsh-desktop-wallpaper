@@ -25,7 +25,7 @@
 
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 // 底图取回：与 tools/fetch-wallpapers.mjs 共用同一份实现（见 fetch-wallpapers.js 顶部注释）
 import { readManifest, fetchWallpapers } from './fetch-wallpapers.js'
@@ -693,24 +693,7 @@ export async function apply(ctx) {
   }), 'dsh-bg-atelier: wallpaper route')
 
   // ---- WE (Wallpaper Engine) 库路由 (/bga/we/*) ----
-  // openExternal: wallpaper:// URI 用, 探测式注入, 绝不硬依赖 electron:
-  //   ① harness 宿主若运行在 Electron 主进程内 → require('electron').shell.openExternal
-  //   ② Windows 独立 Node 宿主 → start 命令走注册表关联 (仅当协议确实注册, 见 routes.js)
-  //   ③ 都没有 → 不注入, routes.js 自动落到 steam.exe -applaunch 兜底。
-  let openExternal = null
-  try {
-    const ele = await import('electron')
-    const sh = ele?.shell ?? ele?.default?.shell
-    if (typeof sh?.openExternal === 'function') openExternal = (u) => sh.openExternal(u)
-  } catch { /* 非 Electron 宿主, 预期路径 */ }
-  if (!openExternal && process.platform === 'win32') {
-    openExternal = (url) => new Promise((resolve, reject) => {
-      // cmd start 的第一个参数是"窗口标题"占位, 空串防止 URL 被当标题吃掉
-      execFile('cmd', ['/c', 'start', '', url], { windowsHide: true }, (err) => err ? reject(err) : resolve())
-    })
-  }
-  // spawnLauncher: 直接拉 exe (steam.exe -applaunch / wallpaper64.exe -control)。
-  // detached + unref: WE/Steam 生命周期不归本进程管, 关掉 DSH 不该带走壁纸引擎。
+  // Launch the official WE CLI without a shell; the application owns its lifetime.
   const spawnLauncher = (exe, args) => new Promise((resolve, reject) => {
     const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true })
     child.on('error', reject)
@@ -719,10 +702,9 @@ export async function apply(ctx) {
   // 解包出静态图 (scene.pkg → webp) 的落点与 sharp 来源: 与 poster/preview 同属派生图，
   // 放同一个设置目录下，换机/清缓存时一起清。
   ctx.effect(() => registerWeRoutes(webServer, {
-    openExternal,
     spawnLauncher,
     stillsDir: path.join(SETTINGS_DIR, 'we-stills'),
-    getSharp,
+    sharpCandidates: sharpCandidates(),
   }), 'dsh-bg-atelier: we routes')
 
   const dir = await wallpaperDir()

@@ -12,3 +12,6 @@ dsh-we-*.zip
 
 # 本机网络绕行配置（一行 PROXY=http://127.0.0.1:<port>，见 fetch-wallpapers.js 头部注释）——机器专属, 不进仓库
 .env.local
+
+# 开发测试依赖（lockfile 保留，供 CI 使用）
+node_modules/

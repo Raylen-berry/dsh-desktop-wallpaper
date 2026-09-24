@@ -1,14 +1,24 @@
-// M-E: Wallpaper Engine bridge。
-// 官方公开能力: wallpaper://open?id=<id> URI 调起 + localhost:16260 内部 WS(websockets.js SDK)。
-// 本机实测 WE 运行时不一定有 16260 监听, 故按"可能不可用"设计:
-//   - 端口探测用裸 TCP(无 WS 依赖), 只回答"WE 内部服务在不在"
-//   - 真 WS 协议通信(getWallpapers/applyWallpaper 等)留待有可用环境时补, 接口位置已留
+// WE process state and optional TCP diagnostic are separate facts.
+// Neither a running process nor port 16260 implies a supported WebSocket RPC.
 import net from "node:net";
+import { execFile } from "node:child_process";
 
 const WE_PORT = 16260;
 const CACHE_MS = 30_000;
 
 let cache = { at: 0, result: null };
+
+export async function probeProcess(run = execFile) {
+  if (process.platform !== 'win32') return Promise.resolve({ running: null, detail: 'unsupported-platform' });
+  const results = await Promise.all(['wallpaper64.exe', 'wallpaper32.exe'].map(executable => new Promise((resolve) => {
+    run('tasklist', ['/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq ' + executable],
+      { encoding: 'utf8', windowsHide: true, timeout: 2500, maxBuffer: 1024 * 1024 },
+      (error, stdout) => resolve(error
+        ? { running: null, detail: 'process-query-failed' }
+        : { running: /^\s*"wallpaper(?:32|64)\.exe",/im.test(stdout), executable, detail: 'process-list' }));
+  })));
+  return results.find(r => r.running === true) || results.find(r => r.running === null) || { running: false, detail: 'process-list' };
+}
 
 function probePort(timeoutMs = 800) {
   return new Promise((resolve) => {
@@ -27,11 +37,9 @@ function probePort(timeoutMs = 800) {
 export async function bridgeStatus(force = false) {
   const now = Date.now();
   if (!force && cache.result && now - cache.at < CACHE_MS) return cache.result;
-  cache = { at: now, result: await probePort() };
+  const [port, runtime] = await Promise.all([probePort(), probeProcess()]);
+  cache = { at: now, result: { ...port, ...runtime, portDetail: port.detail, rpcSupported: false, mode: 'local' } };
   return cache.result;
 }
 
-// 留接口: 16260 可用后在此实现 WE SDK 通信(getWallpapers / applyWallpaper / 事件订阅)
-export async function weRpc() {
-  throw new Error("WE websocket RPC not implemented yet: no test environment with 16260 listening");
-}
+// No RPC provider is advertised: a listening TCP port is not a control API.

@@ -14,6 +14,7 @@
 //   ④ 特效 (blur/水波/音频响应/脚本动画) 不渲染；alpha/brightness 等属性也不做混合。
 import { readPkgFile } from "./pkg.js";
 import { readTex, decodeTex } from "./tex.js";
+import { LIMITS, bounded, pixels } from './limits.js';
 
 const num = (s, i, d = 0) => {
   const parts = String(s ?? "").trim().split(/\s+/);
@@ -29,9 +30,11 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
   const pkg = readPkgFile(pkgPath);
   const scene = pkg.readJson("scene.json");
   if (!scene || !Array.isArray(scene.objects)) throw new Error("scene.json 里没有 objects");
+  bounded(scene.objects.length, 2048, '场景对象数');
 
   // ---- 贴图缓存: 同一张贴图会被多个图层引用（脸/头发分件共用底图） ----
   const texCache = new Map();
+  let textureBytes = 0;
   function textureFor(ob) {
     if (!ob.image) return null;
     const model = pkg.readJson(ob.image);
@@ -45,9 +48,13 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
       if (raw) {
         const tex = readTex(raw);
         res = { ...decodeTex(tex), name, format: tex.header.format };
+        // Embedded PNGs remain compressed until each sequential sharp call.
+        // Count retained buffers, not hypothetical simultaneous PNG decodes.
+        textureBytes += (res.data || res.png).length;
+        bounded(textureBytes, LIMITS.texturePoolBytes, '场景贴图缓存总量');
       }
     } catch (e) {
-      console.error(`[dsh-bg-atelier] we still: 贴图解不出 ${name}: ${e && e.message}`);
+      throw new Error(`贴图解不出 ${name}: ${e && e.message}`);
     }
     texCache.set(name, res);
     return res;
@@ -55,23 +62,30 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
 
   // ---- 世界坐标: 父链相乘；attachment 层挂到最近的非 attachment 祖先（见文件头 ③） ----
   const byId = new Map(scene.objects.map((x) => [x.id, x]));
-  function worldOf(ob) {
+  function worldOf(ob, seen = new Set()) {
+    if (seen.has(ob) || seen.size > 128) throw new Error('场景父链循环或过深');
+    seen.add(ob);
     const scale = num(ob.scale, 0, 1);
     const ox = num(ob.origin, 0), oy = num(ob.origin, 1);
     let parentOb = ob.parent ? byId.get(ob.parent) : null;
     if (ob.attachment) {
       let anc = parentOb;
-      while (anc && anc.attachment) anc = byId.get(anc.parent);
+      const attachments = new Set();
+      while (anc && anc.attachment) {
+        if (attachments.has(anc)) throw new Error('场景骨骼父链循环');
+        attachments.add(anc); anc = byId.get(anc.parent);
+      }
       parentOb = anc || null;
     }
     if (parentOb) {
-      const p = worldOf(parentOb);
+      const p = worldOf(parentOb, seen);
       return { x: p.x + p.scale * ox, y: p.y + p.scale * oy, scale: p.scale * scale };
     }
     return { x: ox, y: oy, scale };
   }
 
   const placed = [];
+  let compositePixels = 0;
   for (const ob of scene.objects) {
     if (!ob.image) continue;
     const vis = ob.visible;
@@ -82,6 +96,8 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
     const sw = num(ob.scale, 0, 1), sh = num(ob.scale, 1, sw || 1);
     const pw = Math.max(1, Math.round(num(ob.size, 0) * w.scale));
     const ph = Math.max(1, Math.round(num(ob.size, 1) * w.scale * (sw ? sh / sw : 1)));
+    compositePixels += pixels(pw, ph);
+    bounded(compositePixels, LIMITS.compositePixels, '合成图层总像素');
     placed.push({ name: ob.name, tex, pw, ph, cx: w.x, cy: w.y });
   }
   if (!placed.length) throw new Error("没有可用的图层");
@@ -102,6 +118,7 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
     H = Math.ceil(Math.max(...placed.map((p) => p.cy + p.ph / 2))) - offY;
   }
   if (!(W > 0) || !(H > 0)) throw new Error(`可见框算出来是 ${W}x${H}`);
+  pixels(W, H);
 
   // ---- 合成（图层顺序 = scene.json 数组顺序；sharp 只接受不大于画布的图，先裁交集） ----
   const composites = [];
@@ -113,7 +130,7 @@ export async function composeStill({ pkgPath, sharp, quality = 92 }) {
     const ix2 = Math.min(W, left + p.pw), iy2 = Math.min(H, top + p.ph);
     if (ix2 <= ix || iy2 <= iy) continue;
     const base = p.tex.png
-      ? sharp(p.tex.png)
+      ? sharp(p.tex.png, { limitInputPixels: LIMITS.pixels })
       : sharp(p.tex.data, { raw: { width: p.tex.width, height: p.tex.height, channels: 4 } });
     const buf = await base
       .resize(p.pw, p.ph, { fit: "fill" })

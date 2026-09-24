@@ -2,6 +2,7 @@
 // media 路由消费 previewRel（相对 entry.path 的干净相对路径），URL 面无绝对路径。
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const PREVIEW_NAMES = ["preview.gif", "preview.jpg", "preview.png", "thumbnail.jpg"];
 
@@ -13,28 +14,38 @@ async function firstExisting(dir, names) {
   return null;
 }
 
-async function scanDir(dir, source, out) {
+async function scanDir(dir, source, out, root = dir, depth = 0) {
   if (!dir) return;
   let ids = [];
-  try { ids = await fs.readdir(dir); } catch { return; }
-  for (const id of ids) {
+  try { ids = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+  for (const item of ids) {
+    if (!item.isDirectory() || item.isSymbolicLink()) continue;
+    const name = item.name;
+    const projectDir = path.join(dir, name);
     try {
-      const pjPath = path.join(dir, id, "project.json");
+      const pjPath = path.join(projectDir, "project.json");
       const pj = JSON.parse(await fs.readFile(pjPath, "utf-8"));
-      const preview = await firstExisting(path.join(dir, id), PREVIEW_NAMES);
+      if (!pj || typeof pj !== 'object' || Array.isArray(pj)) continue;
+      const rel = path.relative(root, projectDir).replace(/\\/g, '/');
+      const id = source === 'local' ? 'local-' + createHash('sha256').update(rel).digest('hex').slice(0, 24) : name;
+      const preview = await firstExisting(projectDir, PREVIEW_NAMES);
       out.push({
         id,
         source,
-        title: pj.title ?? id,
+        title: typeof pj.title === 'string' ? pj.title : name,
         type: pj.type ?? "unknown",
         file: pj.file ?? null,                          // mp4/html；scene 类封在 .pkg 内, 磁盘不存在
         preview,                                        // 绝对路径（调试用）
-        previewRel: preview ? path.relative(path.join(dir, id), preview).replace(/\\/g, "/") : null,
+        previewRel: preview ? path.relative(projectDir, preview).replace(/\\/g, "/") : null,
         tags: Array.isArray(pj.tags) ? pj.tags : [],
         schemeColor: pj.general?.properties?.schemecolor?.value ?? null,
-        path: path.join(dir, id),
+        path: projectDir,
       });
-    } catch { /* 无 project.json 或损坏，跳过 */ }
+    } catch {
+      // WE local layout: projects/<group>/<project>/project.json. Stop at
+      // project roots and never recursively walk their asset directories.
+      if (source === 'local' && depth < 1) await scanDir(projectDir, source, out, root, depth + 1);
+    }
   }
 }
 

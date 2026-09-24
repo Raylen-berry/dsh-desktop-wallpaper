@@ -7,23 +7,29 @@
 //     (0x130=304) 的低字节 —— 按 9 字节魔数读会把后面的字段整体错位一位。
 // 数据段本身不压缩（压缩在 .tex 内部，见 we/tex.js）。
 import fs from "node:fs";
+import { LIMITS, bounded } from './limits.js';
 
 export function readPkg(buf) {
+  bounded(buf.length, LIMITS.packageBytes, 'pkg 字节数');
   let o = 0;
   const u32 = () => { const v = buf.readUInt32LE(o); o += 4; return v };
   const magicLen = u32();
+  bounded(magicLen, 32, 'pkg magic 长度', 1);
   const magic = buf.slice(o, o + magicLen).toString("ascii"); o += magicLen;
   if (!magic.startsWith("PKGV")) throw new Error(`not a PKGV package: ${JSON.stringify(magic)}`);
   const count = u32();
+  bounded(count, 10000, 'pkg 条目数');
   const entries = [];
   for (let i = 0; i < count; i++) {
     const n = u32();
+    bounded(n, 4096, 'pkg 路径长度', 1);
     const p = buf.slice(o, o + n).toString("utf8"); o += n;
     const offset = u32();
     const length = u32();
     entries.push({ p, offset, length });
   }
   const dataStart = o;
+  for (const e of entries) if (dataStart + e.offset + e.length > buf.length) throw new Error('pkg 条目越界');
   const byPath = new Map(entries.map((e) => [e.p, e]));
   return {
     magic,
@@ -44,5 +50,12 @@ export function readPkg(buf) {
 }
 
 export function readPkgFile(filePath) {
-  return readPkg(fs.readFileSync(filePath));
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const size = bounded(fs.fstatSync(fd).size, LIMITS.packageBytes, 'pkg 字节数');
+    const buffer = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) { const n = fs.readSync(fd, buffer, offset, size - offset, offset); if (!n) throw new Error('pkg 读取不完整'); offset += n; }
+    return readPkg(buffer);
+  } finally { fs.closeSync(fd); }
 }

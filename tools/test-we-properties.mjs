@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),p=require('../we/native/properties.cjs');
+const fields=p.schema({general:{properties:{group:{type:'group',order:1,text:'人物'},move:{type:'bool',order:2,text:'动作',value:true},zoom:{type:'slider',order:3,text:'缩放',min:1,max:1.3,step:.01,value:1},color:{type:'color',order:4,value:'.2 .4 .8'},file:{type:'scenetexture',order:5,value:'unsafe'},combo:{type:'combo',order:6,value:2,options:[{label:'二',value:2}]}}}});
+assert.equal(fields.find(f=>f.key==='move').group,'人物');assert.equal(fields.find(f=>f.key==='file').type,'unsupported');
+assert.equal(p.defaults(fields).volume,0);assert.equal(p.defaults(fields).zoom,1);
+for(const patch of [{zoom:2},{zoom:NaN},{move:1},{file:'C:/arbitrary'},{unlisted:true},{color:'1 1 9'},{combo:'2'},['move']])assert.throws(()=>p.validate(fields,patch));
+assert.equal(p.validate(fields,{move:false,zoom:1.2}).zoom,1.2);
+assert.equal(p.restore(fields,{zoom:8,move:false}).zoom,1);assert.equal(p.restore(fields,{zoom:8,move:false}).move,false);
+const args=p.command('DSH-WE-123-0123456789abcdef',{move:false});
+assert.deepEqual(args.slice(0,4),['-control','applyProperties','-location','DSH-WE-123-0123456789abcdef']);
+assert.equal(args.at(-1),'RAW~({"move":false})~END');assert.throws(()=>p.command('Monitor0',{}));
+console.log('PASS property metadata grouping / typed validation / safe defaults / unsupported files / exact DSH window target');

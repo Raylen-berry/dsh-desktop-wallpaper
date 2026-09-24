@@ -6,7 +6,7 @@ name: CI
 # 为什么是 20/22/24 矩阵：仓库没写 engines，按 20/22 = 常见 LTS、24 = DSH Desktop 实际内置的运行时；
 #   三档已用**独立下载的** node 在干净环境逐套实测通过。
 #
-# 全程不联网、**绝不真实下载**：两个套件自带假 HTTP 服务与假图片字节。
+# npm ci 安装开发依赖；测试执行期间不访问外网，不下载壁纸，HTTP 测试仅用本地夹具。
 # 已排除的步骤与原因（详见 tools/run-all.mjs 的 EXCLUDED）：
 #   · fetch-wallpapers.mjs --check —— 要本机已备好 39 张 820MB 底图（图片不进 git ⇒ CI 上必然失败），
 #     而且这个脚本本身就会**真实下载**，绝不能进 CI
@@ -28,5 +28,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       # npm test = node tools/run-all.mjs：跑完再汇总，任一套失败 ⇒ 退出码 1。
-      # 测试不需要任何依赖，所以没有 npm install（离线可跑）。
+      # React 生命周期验证需要开发依赖；测试本身不做外网请求。
+      - run: npm ci --no-audit --no-fund
+      - run: npm run native:build
       - run: npm test

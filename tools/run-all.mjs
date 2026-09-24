@@ -17,11 +17,18 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const LIST_ONLY = process.argv.includes('--list')
 
 // ---- 仓库配置 -------------------------------------------------------------
-const CHECKS = []
+const CHECKS = ['index.js', 'client.js', ...fs.readdirSync(path.join(REPO, 'we')).filter(n => n.endsWith('.js')).map(n => 'we/' + n)]
+CHECKS.push(...fs.readdirSync(path.join(REPO, 'we/native')).filter(n => n.endsWith('.cjs')).map(n => 'we/native/' + n))
 
 const SUITES = [
   'tools/test-download-robustness.mjs',
   'tools/test-we-decode.mjs',
+  'tools/test-we-library.mjs',
+  'tools/test-we-services.mjs',
+  'tools/test-we-routes.mjs',
+  'tools/test-we-client.mjs',
+  'tools/test-we-native.mjs',
+  'tools/test-we-properties.mjs',
   'tools/verify-dockfx-bounds.mjs',
   // 底图去重（贝利尔两对：同内容两个名字 → 硬链接）。离线自足：清单校验那几项在 CI 照跑，
   // 只有"读真图"的 ①②③ 在没有 wallpapers/ 时打 SKIP（图片不进 git）。
