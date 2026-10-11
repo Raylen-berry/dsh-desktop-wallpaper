@@ -28,7 +28,8 @@
     "cordis.patch.yml",
     "wallpapers.manifest.json",
     "README.md",
-    "INSTALL.md",
+    "docs",
+    "CHANGELOG.md",
     "we",
     "tools/build-native.mjs",
     "tools/install-native-bridge.mjs"
